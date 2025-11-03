@@ -91,8 +91,8 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     term.onData((data) => {
       const id = sessionIdRef.current;
       if (!id) return;
-      const toSend = data === "\r" ? "\r\n" : data;
-      invoke("ssh_write", { id, data: toSend }).catch((err) => {
+      // SSH PTY에서는 \r만 보내면 됨 (\r\n 보내면 프롬프트 중복)
+      invoke("ssh_write", { id, data }).catch((err) => {
         console.error("[ssh_write error]", err);
       });
     });
