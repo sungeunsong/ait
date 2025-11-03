@@ -13,9 +13,11 @@
     "windows": [
       {
         "label": "main",
-        "title": "ait",
-        "width": 800,
-        "height": 600
+        "title": "AIT Terminal",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 800,
+        "minHeight": 600
       }
     ],
     "security": {

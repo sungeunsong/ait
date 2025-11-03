@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Terminal } from "xterm";
+import { FitAddon } from "@xterm/addon-fit";
 import "xterm/css/xterm.css";
 
 import { invoke } from "@tauri-apps/api/core";
@@ -21,7 +22,6 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 1) 터미널 1번만 만든다
     const term = new Terminal({
       fontSize: 14,
-      rows: 24,
       cursorBlink: true,
       convertEol: true,
       theme: {
@@ -31,9 +31,23 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     });
     termRef.current = term;
 
-    // 2) DOM에 붙이기
+    // 2) FitAddon 추가
+    const fitAddon = new FitAddon();
+    term.loadAddon(fitAddon);
+
+    // 3) DOM에 붙이기
     if (containerRef.current) {
       term.open(containerRef.current);
+      // 초기 fit
+      setTimeout(() => fitAddon.fit(), 0);
+    }
+
+    // 4) ResizeObserver로 창 크기 변화 감지
+    const resizeObserver = new ResizeObserver(() => {
+      fitAddon.fit();
+    });
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
     }
 
     // 3) 이벤트 먼저 듣기 (Rust → 프론트)
@@ -99,6 +113,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
 
     // 6) cleanup
     return () => {
+      resizeObserver.disconnect();
       unlistenPromise.then((un) => un());
       term.dispose();
       const id = sessionIdRef.current;
@@ -139,7 +154,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       {/* Terminal Container */}
       <div
         ref={containerRef}
-        className="flex-1"
+        className="h-full w-full flex-1"
         style={{ background: "#0a0a0a" }}
       />
     </div>
