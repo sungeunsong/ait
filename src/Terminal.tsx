@@ -4,8 +4,14 @@ import "xterm/css/xterm.css";
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { ServerProfile } from "./ProfileList";
+import { Server } from "lucide-react";
 
-export const SshTerminal: React.FC = () => {
+interface SshTerminalProps {
+  profile: ServerProfile;
+}
+
+export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const sessionIdRef = useRef<string | null>(null); // ← 새로 추가: effect 안에서 쓸용
@@ -49,11 +55,18 @@ export const SshTerminal: React.FC = () => {
     // 4) 실제 SSH 셸 열기
     (async () => {
       try {
+        term.writeln(`🔌 Connecting to ${profile.user}@${profile.host}:${profile.port}...`);
+
+        if (!profile.password) {
+          term.writeln(`❌ Password not available for this profile\r\n`);
+          return;
+        }
+
         const id = await invoke<string>("ssh_open_shell", {
-          host: "192.168.136.146",
-          port: 22,
-          user: "root",
-          password: "ehfpal!!",
+          host: profile.host,
+          port: profile.port,
+          user: profile.user,
+          password: profile.password,
         });
         // ref에도 저장, state에도 저장
         sessionIdRef.current = id;
@@ -88,9 +101,38 @@ export const SshTerminal: React.FC = () => {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height: "100%", background: "#1e1e1e" }}
-    />
+    <div className="flex h-full flex-col bg-gray-950">
+      {/* Terminal Header */}
+      <div className="flex items-center justify-between border-b border-gray-800/50 bg-gradient-to-r from-gray-900 to-gray-900/95 px-4 py-3 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600/10 ring-1 ring-blue-500/20">
+            <Server size={16} className="text-blue-400" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold text-gray-100">
+              {profile.name}
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-400">
+              <span>{profile.user}@{profile.host}</span>
+              <span className="text-gray-600">•</span>
+              <span>Port {profile.port}</span>
+            </div>
+          </div>
+        </div>
+        {sessionId && (
+          <div className="flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 ring-1 ring-green-500/20">
+            <div className="h-2 w-2 animate-pulse rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
+            <span className="text-xs font-medium text-green-400">Connected</span>
+          </div>
+        )}
+      </div>
+
+      {/* Terminal Container */}
+      <div
+        ref={containerRef}
+        className="flex-1"
+        style={{ background: "#0a0a0a" }}
+      />
+    </div>
   );
 };
