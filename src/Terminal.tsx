@@ -34,11 +34,6 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 2) DOM에 붙이기
     if (containerRef.current) {
       term.open(containerRef.current);
-      // DOM 붙은 다음에 쓰기
-      requestAnimationFrame(() => {
-        term.write("🔌 AIT SSH Terminal Ready\r\n");
-        term.write("세션을 여는 중...\r\n");
-      });
     }
 
     // 3) 이벤트 먼저 듣기 (Rust → 프론트)
@@ -55,12 +50,25 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 4) 실제 SSH 셸 열기
     (async () => {
       try {
-        term.writeln(`🔌 Connecting to ${profile.user}@${profile.host}:${profile.port}...`);
+        term.writeln("🔌 AIT SSH Terminal Ready\r\n");
+        term.writeln(`🔌 Connecting to ${profile.user}@${profile.host}:${profile.port}...\r\n`);
+
+        // Debug: Check if password exists
+        console.log("[Terminal] Profile:", {
+          name: profile.name,
+          host: profile.host,
+          hasPassword: !!profile.password,
+          passwordLength: profile.password?.length || 0
+        });
 
         if (!profile.password) {
-          term.writeln(`❌ Password not available for this profile\r\n`);
+          term.writeln(`❌ Error: Password not available for this profile\r\n`);
+          term.writeln(`💡 Please edit the profile and add a password\r\n`);
+          console.error("[Terminal] No password in profile:", profile);
           return;
         }
+
+        term.writeln(`🔐 Authenticating...\r\n`);
 
         const id = await invoke<string>("ssh_open_shell", {
           host: profile.host,
@@ -68,13 +76,14 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
           user: profile.user,
           password: profile.password,
         });
+
         // ref에도 저장, state에도 저장
         sessionIdRef.current = id;
         setSessionId(id);
-        term.writeln(`✅ SSH connected (session: ${id})`);
+        term.writeln(`✅ SSH connected (session: ${id})\r\n`);
       } catch (e) {
-        term.writeln(`❌ SSH connection failed: ${String(e)}\r\n`);
-        console.error(e);
+        term.writeln(`\r\n❌ SSH connection failed: ${String(e)}\r\n`);
+        console.error("[Terminal] Connection error:", e);
       }
     })();
 

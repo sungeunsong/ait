@@ -10,6 +10,7 @@ pub struct Profile {
     pub port: u16,
     pub user: String,
     pub auth_type: String, // "password" or "key"
+    pub password: Option<String>, // TODO: Move to OS Keychain for security
     pub profile_group: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -22,6 +23,7 @@ pub struct CreateProfileInput {
     pub port: u16,
     pub user: String,
     pub auth_type: String,
+    pub password: Option<String>,
     pub profile_group: Option<String>,
 }
 
@@ -48,14 +50,15 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
         port: input.port,
         user: input.user,
         auth_type: input.auth_type,
+        password: input.password,
         profile_group: input.profile_group,
         created_at: now,
         updated_at: now,
     };
 
     conn.execute(
-        "INSERT INTO profiles (id, name, host, port, user, auth_type, profile_group, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        "INSERT INTO profiles (id, name, host, port, user, auth_type, password, profile_group, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
             &profile.id,
             &profile.name,
@@ -63,6 +66,7 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
             profile.port,
             &profile.user,
             &profile.auth_type,
+            &profile.password,
             &profile.profile_group,
             profile.created_at,
             profile.updated_at,
@@ -75,7 +79,7 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
 /// Get all profiles
 pub fn list_profiles(conn: &Connection) -> Result<Vec<Profile>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, host, port, user, auth_type, profile_group, created_at, updated_at
+        "SELECT id, name, host, port, user, auth_type, password, profile_group, created_at, updated_at
          FROM profiles
          ORDER BY profile_group, name",
     )?;
@@ -89,9 +93,10 @@ pub fn list_profiles(conn: &Connection) -> Result<Vec<Profile>> {
                 port: row.get(3)?,
                 user: row.get(4)?,
                 auth_type: row.get(5)?,
-                profile_group: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                password: row.get(6)?,
+                profile_group: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -102,7 +107,7 @@ pub fn list_profiles(conn: &Connection) -> Result<Vec<Profile>> {
 /// Get a profile by ID
 pub fn get_profile(conn: &Connection, id: &str) -> Result<Option<Profile>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, host, port, user, auth_type, profile_group, created_at, updated_at
+        "SELECT id, name, host, port, user, auth_type, password, profile_group, created_at, updated_at
          FROM profiles
          WHERE id = ?1",
     )?;
@@ -116,9 +121,10 @@ pub fn get_profile(conn: &Connection, id: &str) -> Result<Option<Profile>> {
                 port: row.get(3)?,
                 user: row.get(4)?,
                 auth_type: row.get(5)?,
-                profile_group: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
+                password: row.get(6)?,
+                profile_group: row.get(7)?,
+                created_at: row.get(8)?,
+                updated_at: row.get(9)?,
             })
         })
         .optional()?;
@@ -141,6 +147,7 @@ pub fn update_profile(conn: &Connection, input: UpdateProfileInput) -> Result<Pr
         port: input.port.unwrap_or(existing.port),
         user: input.user.unwrap_or(existing.user),
         auth_type: input.auth_type.unwrap_or(existing.auth_type),
+        password: existing.password, // Keep existing password
         profile_group: input.profile_group.or(existing.profile_group),
         created_at: existing.created_at,
         updated_at: now,

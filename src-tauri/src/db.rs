@@ -25,12 +25,16 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             port INTEGER NOT NULL,
             user TEXT NOT NULL,
             auth_type TEXT NOT NULL,
+            password TEXT,
             profile_group TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
         [],
     )?;
+
+    // Migration: Add password column if it doesn't exist (for existing databases)
+    let _ = conn.execute("ALTER TABLE profiles ADD COLUMN password TEXT", []);
 
     // Create history table
     conn.execute(

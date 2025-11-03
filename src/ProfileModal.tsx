@@ -37,6 +37,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           port: parseInt(formData.port),
           user: formData.user,
           auth_type: "password",
+          password: formData.password || null,
           profile_group: formData.profile_group || null,
         },
       });
