@@ -1,4 +1,5 @@
 mod db;
+mod history;
 mod profile;
 mod ssh;
 
@@ -30,6 +31,7 @@ pub fn run() {
             profile_get,
             profile_update,
             profile_delete,
+            history_save,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -74,4 +76,14 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     profile::delete_profile(conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn history_save(
+    state: State<AppState>,
+    input: history::SaveHistoryInput,
+) -> Result<history::HistoryEntry, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    history::save_history(conn, input).map_err(|e| e.to_string())
 }

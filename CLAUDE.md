@@ -146,33 +146,129 @@ Rust는 코어 기능 중심, React는 UI에 집중
 
 ---
 
-## 🔄 현재 진행 상황 (2025-10-31)
+## 🔄 현재 진행 상황 (2025-11-05)
 ### ✅ 완료된 작업
 - **SSH 연결 기본 기능 구현** (`src-tauri/src/ssh.rs`)
 - **Tauri v2 호환성 문제 해결**: `Emitter` trait import로 `emit_to` 메서드 사용
 - **프론트엔드 구조 분석**: App.tsx → Terminal.tsx (xterm.js 기반)
 - **Tailwind CSS + Lucide React 설정 완료**
-- **서버 프로필 관리 시스템 설계**: MobaXterm 스타일 좌측 리스트 + 우측 터미널
+- **서버 프로필 관리 시스템**: MobaXterm 스타일 좌측 리스트 + 우측 터미널
+- **SQLite 데이터베이스**: profiles, history, settings 테이블 구현
+- **프로필 CRUD 기능**: create, list, get, update, delete
+- **다중 탭 세션**: Ctrl+W, Ctrl+Tab 단축키 지원
 
-### 🚧 다음 세션 작업 계획 (월요일)
-1. **SQLite 데이터베이스 구현**
+---
+
+## 🎯 명령어 히스토리 & 자동완성 기능 (진행 중)
+
+### 설계 개요
+- **인라인 회색 텍스트**: → 키로 수락
+- **드롭다운 리스트**: Shift+Space로 열기 (↑/↓ 선택, Enter 적용)
+- **제안 소스**: 명령 히스토리(SQLite) + 리눅스 기본 명령어 사전
+- **Tab 키**: 서버로 전달 (경로 자동완성과 충돌 방지)
+
+### 📦 구현 단계 (12 Steps)
+
+#### ✅ Step 1: 히스토리 저장 기능 (Backend) - 완료 ✓
+- [x] `src-tauri/src/history.rs` 파일 생성
+- [x] `history_save()` Tauri command 구현
+- [x] `lib.rs`에 등록
+- [x] Rust 빌드 성공
+- **파일**: `src-tauri/src/history.rs`, `src-tauri/src/lib.rs`
+
+#### ✅ Step 2: Terminal에서 히스토리 저장 연동 (Frontend) - 완료 ✓
+- [x] `Terminal.tsx` 수정: Enter 키 감지
+- [x] 현재 입력 명령어 추적 (`currentInputRef`)
+- [x] Backspace 처리
+- [x] `history_save()` invoke 호출
+- **테스트 대기**: 사용자가 직접 테스트 예정
+- **파일**: `src/Terminal.tsx` (105-142줄)
+
+#### 🔄 Step 3: 히스토리 검색 기능 (Backend) - 다음 세션
+- [ ] `history_search(prefix)` 구현
+- [ ] 빈도순 정렬
+- **확인**: 수동 invoke로 검색 결과 확인
+
+#### ⬜ Step 3: 히스토리 검색 기능 (Backend) - 30분
+- [ ] `history_search(prefix)` 구현
+- [ ] 빈도순 정렬
+- **확인**: 수동 invoke로 검색 결과 확인
+
+#### ⬜ Step 4: 명령 입력 추적 Hook (Frontend) - 30분
+- [ ] `src/hooks/useCommandInput.ts` 생성
+- [ ] xterm.js `onData()` 이벤트로 실시간 추적
+- **확인**: console.log로 입력 내용 출력
+
+#### ⬜ Step 5: 드롭다운 UI 컴포넌트 (Frontend) - 40분
+- [ ] `src/components/AutocompleteDropdown.tsx` 생성
+- [ ] Tailwind 스타일링
+- **확인**: 더미 데이터로 렌더링 테스트
+
+#### ⬜ Step 6: Shift+Space 드롭다운 열기 (Frontend) - 30분
+- [ ] Shift+Space 키 감지
+- [ ] `history_search()` 호출 → 드롭다운 표시
+- **확인**: 제안 목록 표시
+
+#### ⬜ Step 7: 드롭다운 네비게이션 (Frontend) - 30분
+- [ ] ↑/↓ 키 이벤트 처리
+- [ ] Enter로 터미널에 삽입
+- **확인**: 선택 후 명령 적용
+
+#### ⬜ Step 8: 인라인 회색 텍스트 컴포넌트 (Frontend) - 40분
+- [ ] `src/components/AutocompleteInline.tsx` 생성
+- [ ] HTML 오버레이로 회색 텍스트 표시
+- **확인**: 타이핑 시 회색 제안 표시
+
+#### ⬜ Step 9: → 키로 인라인 제안 수락 (Frontend) - 20분
+- [ ] → 키 이벤트 감지
+- [ ] 제안을 현재 입력에 병합
+- **확인**: 회색 제안 수락 테스트
+
+#### ⬜ Step 10: 리눅스 명령어 사전 (Backend) - 30분
+- [ ] `src-tauri/src/commands_dict.rs` 생성
+- [ ] 50-100개 명령어 목록
+- **확인**: 히스토리 없이도 제안 표시
+
+#### ⬜ Step 11: 히스토리 + 사전 통합 (Frontend) - 20분
+- [ ] 두 소스 병합 (히스토리 우선)
+- [ ] 중복 제거, 최대 10개
+- **확인**: 제안 품질 테스트
+
+#### ⬜ Step 12: 통합 테스트 & 버그 수정 - 30분
+- [ ] 전체 시나리오 테스트
+- [ ] Tab 키가 서버로 전달되는지 확인
+- **확인**: 실제 SSH 세션 사용
+
+**총 예상 시간**: 5-6시간 | **권장**: 하루 3-4 Step씩
+
+---
+
+### 📝 세션 노트 (2025-11-05)
+
+**오늘 완료한 작업**:
+- ✅ Step 1: Backend 히스토리 저장 기능 구현
+  - `history.rs` 생성, `save_history()` 함수
+  - Tauri command 등록, Rust 빌드 성공
+- ✅ Step 2: Frontend 히스토리 저장 연동
+  - Terminal.tsx에 입력 추적 로직 추가
+  - Enter 키 감지하여 `history_save()` 호출
+  - Backspace, 일반 문자 입력 처리
+
+**다음 세션 시작 방법**:
+1. Step 2 테스트 (선택사항)
    ```bash
-   cd src-tauri && cargo add rusqlite uuid serde serde_json
+   pnpm tauri dev
+   # 명령어 입력 후 DB 확인:
+   sqlite3 ~/.local/share/com.ait.dev/ait.db "SELECT cmd, ts FROM history ORDER BY ts DESC LIMIT 10;"
    ```
-   - profiles, history, settings 테이블 생성
-   - 데이터베이스 초기화 로직
+2. **Step 3부터 재개**: 히스토리 검색 기능 구현
 
-2. **Tauri Commands 구현**
-   - `profile_create`, `profile_list`, `profile_update`, `profile_delete`
-   - SSH 연결을 프로필 기반으로 변경
+**설계 결정 사항**:
+- ✅ 인라인 제안: → (오른쪽 화살표) 키 사용 (Tab 충돌 방지)
+- ✅ 드롭다운: Shift+Space로 열기
+- ✅ 제안 소스: 히스토리(우선) + 리눅스 명령어 사전
 
-3. **React UI 컴포넌트 개발**
-   - 프로필 리스트 컴포넌트 (좌측 패널)
-   - 프로필 추가/편집 모달
-   - 기존 Terminal.tsx를 프로필 선택 기반으로 수정
-
-4. **통합 테스트**
-   - 프로필 생성 → 선택 → SSH 연결 플로우 검증
+---
 
 ### 🎯 목표 UI 구조
 ```

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ProfileList, ServerProfile } from "./ProfileList";
 import { SshTerminal } from "./Terminal";
-import { X, Plus } from "lucide-react";
+import { X } from "lucide-react";
 
 interface Tab {
   id: string;

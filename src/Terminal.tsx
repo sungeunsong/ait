@@ -17,6 +17,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const termRef = useRef<Terminal | null>(null);
   const sessionIdRef = useRef<string | null>(null); // ← 새로 추가: effect 안에서 쓸용
   const [sessionId, setSessionId] = useState<string | null>(null); // 화면에 보여줄 용도만
+  const currentInputRef = useRef<string>(""); // 현재 입력 중인 명령어 추적
 
   useEffect(() => {
     // 1) 터미널 1번만 만든다
@@ -105,6 +106,35 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     term.onData((data) => {
       const id = sessionIdRef.current;
       if (!id) return;
+
+      // Enter 키 감지 (명령어 실행)
+      if (data === '\r' || data === '\n') {
+        const cmd = currentInputRef.current.trim();
+        if (cmd.length > 0) {
+          // 히스토리에 저장
+          invoke("history_save", {
+            input: {
+              profile_id: profile.id,
+              cmd: cmd,
+              exit_code: null,
+              duration_ms: null,
+            }
+          }).catch((err) => {
+            console.error("[history_save error]", err);
+          });
+        }
+        // 입력 버퍼 초기화
+        currentInputRef.current = "";
+      }
+      // Backspace 처리
+      else if (data === '\x7F' || data === '\b') {
+        currentInputRef.current = currentInputRef.current.slice(0, -1);
+      }
+      // 일반 문자 입력
+      else if (data >= ' ' && data <= '~') {
+        currentInputRef.current += data;
+      }
+
       // SSH PTY에서는 \r만 보내면 됨 (\r\n 보내면 프롬프트 중복)
       invoke("ssh_write", { id, data }).catch((err) => {
         console.error("[ssh_write error]", err);
