@@ -1,3 +1,4 @@
+mod commands_dict;
 mod db;
 mod history;
 mod profile;
@@ -32,6 +33,8 @@ pub fn run() {
             profile_update,
             profile_delete,
             history_save,
+            history_search,
+            history_suggestions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -86,4 +89,30 @@ fn history_save(
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     history::save_history(conn, input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn history_search(
+    state: State<AppState>,
+    profile_id: String,
+    prefix: String,
+    limit: Option<usize>,
+) -> Result<Vec<history::CommandSuggestion>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    let limit = limit.unwrap_or(10);
+    history::search_history(conn, &profile_id, &prefix, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn history_suggestions(
+    state: State<AppState>,
+    profile_id: String,
+    prefix: String,
+    limit: Option<usize>,
+) -> Result<Vec<history::CommandSuggestion>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    let limit = limit.unwrap_or(10);
+    history::search_suggestions(conn, &profile_id, &prefix, limit).map_err(|e| e.to_string())
 }
