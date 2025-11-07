@@ -1,3 +1,4 @@
+mod ai;
 mod commands_dict;
 mod db;
 mod history;
@@ -42,6 +43,8 @@ pub fn run() {
             settings_get,
             settings_set,
             settings_get_all,
+            ai_ask,
+            ai_extract_commands,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -157,4 +160,34 @@ fn settings_get_all(state: State<AppState>) -> Result<Vec<settings::Setting>, St
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     settings::get_all_settings(conn).map_err(|e| e.to_string())
+}
+
+// ============================================================================
+// AI Commands
+// ============================================================================
+
+#[tauri::command]
+async fn ai_ask(
+    prompt: String,
+    context: Option<String>,
+    server_url: Option<String>,
+    model: Option<String>,
+) -> Result<ai::AIResponse, String> {
+    let mut config = ai::AIConfig::default();
+
+    if let Some(url) = server_url {
+        config.server_url = url;
+    }
+    if let Some(m) = model {
+        config.model = m;
+    }
+
+    ai::ask_ollama(&config, &prompt, context.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn ai_extract_commands(response: String) -> Result<Vec<String>, String> {
+    Ok(ai::extract_commands(&response))
 }

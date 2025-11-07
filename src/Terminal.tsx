@@ -10,6 +10,7 @@ import { Server, Trash2 } from "lucide-react";
 import { useCommandInput } from "./hooks/useCommandInput";
 import { AutocompleteDropdown, CommandSuggestion } from "./components/AutocompleteDropdown";
 import { InlineOverlay } from "./components/InlineOverlay";
+import { AIPanel } from "./components/AIPanel";
 
 interface SshTerminalProps {
   profile: ServerProfile;
@@ -34,6 +35,9 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
 
   // Cursor position state for inline overlay
   const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+
+  // AI Panel state
+  const [showAIPanel, setShowAIPanel] = useState(false);
 
   // Refs for state access in event handlers
   const inlineSuggestionRef = useRef<string>('');
@@ -375,10 +379,21 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         return false; // 이벤트 전파 중단
       }
 
-      // Esc 키로 드롭다운 닫기
-      if (event.key === 'Escape' && isDropdownOpen && event.type === 'keydown') {
+      // Ctrl+Space로 AI 패널 토글
+      if (event.key === ' ' && event.ctrlKey && event.type === 'keydown') {
         event.preventDefault();
-        setShowDropdown(false);
+        setShowAIPanel((prev) => !prev);
+        return false;
+      }
+
+      // Esc 키로 드롭다운 또는 AI 패널 닫기
+      if (event.key === 'Escape' && event.type === 'keydown') {
+        event.preventDefault();
+        if (isDropdownOpen) {
+          setShowDropdown(false);
+        } else {
+          setShowAIPanel(false);
+        }
         return false;
       }
 
@@ -606,6 +621,22 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
             position={dropdownPosition}
           />
         )}
+
+        {/* AI Panel */}
+        <AIPanel
+          isOpen={showAIPanel}
+          onClose={() => setShowAIPanel(false)}
+          onInsertCommand={(command) => {
+            const id = sessionIdRef.current;
+            if (id) {
+              // 명령어를 터미널에 입력 (자동 실행 안 함)
+              invoke("ssh_write", { id, data: command }).catch((err) => {
+                console.error("[ssh_write error]", err);
+              });
+            }
+          }}
+          context={`Current session: ${profile.user}@${profile.host}`}
+        />
       </div>
     </div>
   );
