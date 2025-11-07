@@ -46,14 +46,31 @@ pub async fn ask_ollama(
     prompt: &str,
     context: Option<&str>,
 ) -> Result<AIResponse, Box<dyn Error>> {
-    // 컨텍스트가 있으면 프롬프트에 추가
+    // 시스템 프롬프트 구성
+    let system_prompt = r#"You are an expert Linux/Unix system administrator and terminal assistant.
+
+Your responsibilities:
+- Provide accurate, concise terminal commands for the user's tasks
+- Explain commands clearly with key options
+- Always wrap commands in ```bash code blocks
+- Prioritize safety: warn about destructive commands (rm -rf, dd, etc.)
+- Consider the user's current environment and context
+
+Response format:
+1. Brief explanation of the solution
+2. Command(s) in ```bash blocks
+3. Important notes or warnings if needed
+
+Keep responses focused and practical."#;
+
+    // 컨텍스트가 있으면 추가
     let full_prompt = if let Some(ctx) = context {
         format!(
-            "You are a helpful Linux terminal assistant.\nContext: {}\n\nQuestion: {}",
-            ctx, prompt
+            "{}\n\n## Current Context\n{}\n\n## User Question\n{}",
+            system_prompt, ctx, prompt
         )
     } else {
-        format!("You are a helpful Linux terminal assistant.\n\nQuestion: {}", prompt)
+        format!("{}\n\n## User Question\n{}", system_prompt, prompt)
     };
 
     let client = reqwest::Client::new();
