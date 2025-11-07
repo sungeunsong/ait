@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { X, Send, Copy, Terminal as TerminalIcon } from 'lucide-react';
+import { X, Send, Copy, Terminal as TerminalIcon, Settings } from 'lucide-react';
 
 interface AIResponse {
   response: string;
@@ -25,6 +25,35 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   const [response, setResponse] = useState<AIResponse | null>(null);
   const [extractedCommands, setExtractedCommands] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // AI 설정
+  const [serverUrl, setServerUrl] = useState('http://192.168.136.8:11434');
+  const [model, setModel] = useState('gpt-oss:20b');
+  const [showSettings, setShowSettings] = useState(false);
+
+  // 설정 로드
+  useEffect(() => {
+    if (isOpen) {
+      Promise.all([
+        invoke<string | null>('settings_get', { key: 'ai_server_url' }),
+        invoke<string | null>('settings_get', { key: 'ai_model' }),
+      ]).then(([savedUrl, savedModel]) => {
+        if (savedUrl) setServerUrl(savedUrl);
+        if (savedModel) setModel(savedModel);
+      }).catch(console.error);
+    }
+  }, [isOpen]);
+
+  // 설정 저장
+  const saveSettings = async () => {
+    try {
+      await invoke('settings_set', { key: 'ai_server_url', value: serverUrl });
+      await invoke('settings_set', { key: 'ai_model', value: model });
+      setShowSettings(false);
+    } catch (err) {
+      console.error('설정 저장 실패:', err);
+    }
+  };
 
   // ESC 키로 패널 닫기
   useEffect(() => {
@@ -56,8 +85,8 @@ export const AIPanel: React.FC<AIPanelProps> = ({
       const result = await invoke<AIResponse>('ai_ask', {
         prompt: question,
         context: context || null,
-        serverUrl: 'http://192.168.136.8:11434',
-        model: 'gpt-oss:20b',
+        serverUrl: serverUrl,
+        model: model,
       });
 
       setResponse(result);
@@ -109,16 +138,70 @@ export const AIPanel: React.FC<AIPanelProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <h2 className="text-lg font-semibold text-white">AI Assistant</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="설정"
+            >
+              <Settings size={20} />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="닫기"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Settings Panel */}
+          {showSettings && (
+            <div className="bg-gray-800 border border-gray-700 rounded p-4 space-y-4">
+              <h3 className="text-base font-semibold text-white">AI 설정</h3>
+
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Ollama 서버 URL:</label>
+                <input
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="http://192.168.136.8:11434"
+                  className="w-full bg-gray-900 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">모델:</label>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="gpt-oss:20b"
+                  className="w-full bg-gray-900 text-white border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={saveSettings}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Question Input */}
           <div className="space-y-2">
             <label className="text-sm text-gray-300">질문을 입력하세요:</label>
