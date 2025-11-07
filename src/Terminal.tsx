@@ -228,6 +228,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 1) 터미널 1번만 만든다
     const term = new Terminal({
       fontSize: fontSize,
+      fontFamily: '"Cascadia Code", "Consolas", "DejaVu Sans Mono", "Courier New", monospace',
       cursorBlink: true,
       convertEol: true,
       theme: {
@@ -489,10 +490,10 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
             <Server size={16} className="text-blue-400" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-100">
+            <div className="text-base font-semibold text-gray-100">
               {profile.name}
             </div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-400">
+            <div className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-400">
               <span>{profile.user}@{profile.host}</span>
               <span className="text-gray-600">•</span>
               <span>Port {profile.port}</span>

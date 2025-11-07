@@ -24,7 +24,7 @@ export const AutocompleteDropdown: React.FC<AutocompleteDropdownProps> = ({
   suggestions,
   selectedIndex,
   onSelect,
-  onClose,
+  // onClose,
   position = { x: 0, y: 0 }
 }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
