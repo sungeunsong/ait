@@ -3,7 +3,23 @@
 @tailwind utilities;
 
 @layer base {
+  /* Windows DPI 스케일링 방지 */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    zoom: 1;
+  }
+
   body {
     @apply bg-gray-950 text-gray-100 antialiased;
+    zoom: 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* xterm.js 컨테이너 스케일링 방지 */
+  .xterm {
+    zoom: 1 !important;
   }
 }

@@ -17,12 +17,18 @@
         "width": 1820,
         "height": 1170,
         "minWidth": 800,
-        "minHeight": 600
+        "minHeight": 600,
+        "hiddenTitle": false,
+        "acceptFirstMouse": false,
+        "tabbingIdentifier": null,
+        "additionalBrowserArgs": "--force-device-scale-factor=1"
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "withGlobalTauri": false,
+    "macOSPrivateApi": false
   },
   "bundle": {
     "active": true,
