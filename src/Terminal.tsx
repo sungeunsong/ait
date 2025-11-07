@@ -21,7 +21,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null); // ← 새로 추가: effect 안에서 쓸용
   const [sessionId, setSessionId] = useState<string | null>(null); // 화면에 보여줄 용도만
-  const [fontSize, setFontSize] = useState<number>(21); // Default font size
+  const [fontSize, setFontSize] = useState<number>(16); // Default font size
 
   // Autocomplete dropdown state
   const [showDropdown, setShowDropdown] = useState(false);

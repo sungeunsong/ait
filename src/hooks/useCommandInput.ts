@@ -72,6 +72,15 @@ export function useCommandInput({ terminal, enabled = true, onCommandExecuted }:
         return;
       }
 
+      // Handle Tab key (ASCII 9) - clear input to avoid suggestion overlap after server autocomplete
+      if (charCode === 9) {
+        console.log('[useCommandInput] Tab pressed, clearing input for server autocomplete');
+        inputBufferRef.current = '';
+        setCurrentInput('');
+        setCursorPosition(0);
+        return;
+      }
+
       // Handle printable characters (ASCII 32-126)
       if (charCode >= 32 && charCode <= 126) {
         inputBufferRef.current += data;
