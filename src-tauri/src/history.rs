@@ -128,6 +128,22 @@ pub fn save_history(conn: &Connection, input: SaveHistoryInput) -> Result<Histor
     Ok(entry)
 }
 
+/// Clear all history for a specific profile
+pub fn clear_history(conn: &Connection, profile_id: &str) -> Result<usize> {
+    let count = conn.execute(
+        "DELETE FROM history WHERE profile_id = ?1",
+        params![profile_id],
+    )?;
+
+    Ok(count)
+}
+
+/// Clear all history (all profiles)
+pub fn clear_all_history(conn: &Connection) -> Result<usize> {
+    let count = conn.execute("DELETE FROM history", [])?;
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

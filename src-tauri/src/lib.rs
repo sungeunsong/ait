@@ -2,6 +2,7 @@ mod commands_dict;
 mod db;
 mod history;
 mod profile;
+mod settings;
 mod ssh;
 
 use std::sync::Mutex;
@@ -26,6 +27,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ssh::ssh_open_shell,
             ssh::ssh_write,
+            ssh::ssh_resize,
             ssh::ssh_close,
             profile_create,
             profile_list,
@@ -35,6 +37,11 @@ pub fn run() {
             history_save,
             history_search,
             history_suggestions,
+            history_clear,
+            history_clear_all,
+            settings_get,
+            settings_set,
+            settings_get_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -115,4 +122,39 @@ fn history_suggestions(
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     let limit = limit.unwrap_or(10);
     history::search_suggestions(conn, &profile_id, &prefix, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn history_clear(state: State<AppState>, profile_id: String) -> Result<usize, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    history::clear_history(conn, &profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn history_clear_all(state: State<AppState>) -> Result<usize, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    history::clear_all_history(conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn settings_get(state: State<AppState>, key: String) -> Result<Option<String>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    settings::get_setting(conn, &key).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn settings_set(state: State<AppState>, key: String, value: String) -> Result<(), String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    settings::set_setting(conn, &key, &value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn settings_get_all(state: State<AppState>) -> Result<Vec<settings::Setting>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    settings::get_all_settings(conn).map_err(|e| e.to_string())
 }

@@ -6,10 +6,10 @@ import "xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ServerProfile } from "./ProfileList";
-import { Server } from "lucide-react";
+import { Server, Trash2 } from "lucide-react";
 import { useCommandInput } from "./hooks/useCommandInput";
 import { AutocompleteDropdown, CommandSuggestion } from "./components/AutocompleteDropdown";
-import { AutocompleteInline } from "./components/AutocompleteInline";
+import { InlineOverlay } from "./components/InlineOverlay";
 
 interface SshTerminalProps {
   profile: ServerProfile;
@@ -18,16 +18,22 @@ interface SshTerminalProps {
 export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null); // ← 새로 추가: effect 안에서 쓸용
   const [sessionId, setSessionId] = useState<string | null>(null); // 화면에 보여줄 용도만
+  const [fontSize, setFontSize] = useState<number>(21); // Default font size
 
   // Autocomplete dropdown state
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [suggestions, setSuggestions] = useState<CommandSuggestion[]>([]);
+  const [dropdownPosition, setDropdownPosition] = useState({ x: 20, y: 100 });
 
   // Inline autocomplete state
   const [inlineSuggestion, setInlineSuggestion] = useState<string>('');
+
+  // Cursor position state for inline overlay
+  const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
 
   // Refs for state access in event handlers
   const inlineSuggestionRef = useRef<string>('');
@@ -53,6 +59,37 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   useEffect(() => {
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
+
+  // Load font size from settings on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const savedFontSize = await invoke<string | null>("settings_get", {
+          key: "terminal_font_size",
+        });
+        if (savedFontSize) {
+          const size = parseInt(savedFontSize, 10);
+          if (size >= 8 && size <= 32) {
+            setFontSize(size);
+          }
+        }
+      } catch (error) {
+        console.error("[Terminal] Failed to load font size:", error);
+      }
+    })();
+  }, []);
+
+  // Save font size when it changes
+  useEffect(() => {
+    if (fontSize !== 14) { // Only save if different from default
+      invoke("settings_set", {
+        key: "terminal_font_size",
+        value: fontSize.toString(),
+      }).catch((error) => {
+        console.error("[Terminal] Failed to save font size:", error);
+      });
+    }
+  }, [fontSize]);
 
   // useCommandInput 훅 사용 (터미널 준비 전에는 null)
   const { currentInput } = useCommandInput({
@@ -110,12 +147,27 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const handleAutocomplete = async () => {
     const currentSessionId = sessionIdRef.current;
     const currentCmd = currentInputRef.current;
+    const term = termRef.current;
 
     console.log("[Terminal] handleAutocomplete called, sessionId:", currentSessionId, "currentCmd:", currentCmd);
 
-    if (!currentSessionId) {
-      console.log("[Terminal] No sessionId, returning");
+    if (!currentSessionId || !term) {
+      console.log("[Terminal] No sessionId or terminal, returning");
       return;
+    }
+
+    // Calculate dropdown position based on terminal cursor
+    const cursorY = term.buffer.active.cursorY;
+    const lineHeight = term.options.fontSize ? term.options.fontSize * 1.2 : 17; // approximate line height
+    const containerRect = containerRef.current?.getBoundingClientRect();
+
+    if (containerRect) {
+      // Position dropdown at cursor Y position (in pixels)
+      const dropdownY = (cursorY + 1) * lineHeight; // +1 to show below current line
+      const dropdownX = 20; // Fixed left margin
+
+      console.log("[Terminal] Cursor position:", { cursorY, lineHeight, dropdownY });
+      setDropdownPosition({ x: dropdownX, y: dropdownY });
     }
 
     const prefix = currentCmd.trim();
@@ -138,10 +190,44 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     }
   };
 
+  // Update terminal font size when fontSize changes
+  useEffect(() => {
+    const term = termRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!term || !fitAddon) return;
+
+    // 폰트 크기 변경
+    term.options.fontSize = fontSize;
+
+    // 폰트 크기 변경 후 터미널 크기 재계산
+    // 약간의 딜레이를 주어 폰트 렌더링이 완료되도록 함
+    setTimeout(() => {
+      fitAddon.fit();
+
+      // 터미널 화면 전체 다시 그리기 (텍스트 겹침 방지)
+      term.refresh(0, term.rows - 1);
+
+      // 터미널을 맨 아래로 스크롤 (커서가 보이도록)
+      term.scrollToBottom();
+
+      // SSH 서버에도 PTY 크기 변경 알림
+      const id = sessionIdRef.current;
+      if (id && term.cols && term.rows) {
+        invoke("ssh_resize", {
+          id,
+          cols: term.cols,
+          rows: term.rows,
+        }).catch((err) => {
+          console.error("[ssh_resize error on font change]", err);
+        });
+      }
+    }, 50);
+  }, [fontSize]);
+
   useEffect(() => {
     // 1) 터미널 1번만 만든다
     const term = new Terminal({
-      fontSize: 14,
+      fontSize: fontSize,
       cursorBlink: true,
       convertEol: true,
       theme: {
@@ -154,6 +240,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 2) FitAddon 추가
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
+    fitAddonRef.current = fitAddon;
 
     // 3) DOM에 붙이기
     if (containerRef.current) {
@@ -165,6 +252,18 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 4) ResizeObserver로 창 크기 변화 감지
     const resizeObserver = new ResizeObserver(() => {
       fitAddon.fit();
+
+      // SSH 서버에도 PTY 크기 변경 알림
+      const id = sessionIdRef.current;
+      if (id && term.cols && term.rows) {
+        invoke("ssh_resize", {
+          id,
+          cols: term.cols,
+          rows: term.rows,
+        }).catch((err) => {
+          console.error("[ssh_resize error]", err);
+        });
+      }
     });
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
@@ -204,11 +303,16 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
 
         term.writeln(`🔐 Authenticating...\r\n`);
 
+        // 초기 fit 후 터미널 크기 확인
+        fitAddon.fit();
+
         const id = await invoke<string>("ssh_open_shell", {
           host: profile.host,
           port: profile.port,
           user: profile.user,
           password: profile.password,
+          cols: term.cols || 80,
+          rows: term.rows || 24,
         });
 
         // ref에도 저장, state에도 저장
@@ -329,6 +433,29 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       return true; // 다른 키는 정상 처리
     });
 
+    // Track cursor position for inline overlay
+    term.onCursorMove(() => {
+      // Get actual cursor element from xterm.js DOM
+      const xtermScreen = containerRef.current?.querySelector('.xterm-screen');
+      const cursorElement = containerRef.current?.querySelector('.xterm-cursor');
+
+      if (cursorElement && xtermScreen) {
+        const cursorRect = cursorElement.getBoundingClientRect();
+        const screenRect = xtermScreen.getBoundingClientRect();
+
+        // Calculate relative position to the terminal screen
+        // Add cursor width to position the suggestion AFTER the cursor
+        const relativeX = cursorRect.left - screenRect.left + cursorRect.width;
+        const relativeY = cursorRect.top - screenRect.top;
+
+
+        setCursorPosition({
+          x: relativeX,
+          y: relativeY,
+        });
+      }
+    });
+
     // 6) 입력 → Rust
     term.onData((data) => {
       const id = sessionIdRef.current;
@@ -373,14 +500,46 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Inline suggestion hint */}
-          {inlineSuggestion && currentInput && !showDropdown && (
-            <div className="flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1.5 ring-1 ring-blue-500/20">
-              <span className="text-xs text-gray-400">Suggestion:</span>
-              <code className="text-xs font-mono text-blue-400">{inlineSuggestion}</code>
-              <span className="text-xs text-gray-500">→ to accept</span>
-            </div>
-          )}
+          {/* Font size controls - 숨김 처리 */}
+          {/* <div className="flex items-center gap-1 rounded-lg bg-gray-800/50 p-1 ring-1 ring-gray-700/50">
+            <button
+              onClick={() => setFontSize((prev) => Math.max(8, prev - 1))}
+              className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-700/50 transition-colors"
+              title="Decrease font size"
+            >
+              <ZoomOut size={14} className="text-gray-400" />
+            </button>
+            <span className="px-2 text-xs font-mono text-gray-400">{fontSize}px</span>
+            <button
+              onClick={() => setFontSize((prev) => Math.min(32, prev + 1))}
+              className="flex h-6 w-6 items-center justify-center rounded hover:bg-gray-700/50 transition-colors"
+              title="Increase font size"
+            >
+              <ZoomIn size={14} className="text-gray-400" />
+            </button>
+          </div> */}
+
+          {/* Clear history button */}
+          <button
+            onClick={async () => {
+              if (confirm(`Clear all command history for ${profile.name}?`)) {
+                try {
+                  const count = await invoke<number>("history_clear", {
+                    profileId: profile.id,
+                  });
+                  alert(`Cleared ${count} history entries`);
+                } catch (error) {
+                  console.error("[Terminal] Failed to clear history:", error);
+                  alert("Failed to clear history");
+                }
+              }
+            }}
+            className="flex h-7 items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 hover:bg-red-500/20 transition-colors ring-1 ring-red-500/20"
+            title="Clear command history"
+          >
+            <Trash2 size={12} className="text-red-400" />
+            <span className="text-xs text-red-400">Clear History</span>
+          </button>
 
           {sessionId && (
             <div className="flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 ring-1 ring-green-500/20">
@@ -397,6 +556,17 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         className="h-full w-full flex-1 relative"
         style={{ background: "#0a0a0a" }}
       >
+        {/* Inline Suggestion Overlay */}
+        {inlineSuggestion && currentInput && !showDropdown && (
+          <InlineOverlay
+            suggestion={inlineSuggestion}
+            currentInput={currentInput}
+            cursorX={cursorPosition.x}
+            cursorY={cursorPosition.y}
+            fontSize={fontSize}
+          />
+        )}
+
         {/* Autocomplete Dropdown */}
         {showDropdown && (
           <AutocompleteDropdown
@@ -432,7 +602,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
               setShowDropdown(false);
             }}
             onClose={() => setShowDropdown(false)}
-            position={{ x: 20, y: 100 }}
+            position={dropdownPosition}
           />
         )}
       </div>

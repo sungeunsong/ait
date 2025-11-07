@@ -29,6 +29,8 @@ pub fn ssh_open_shell(
     port: u16,
     user: String,
     password: String,
+    cols: Option<u32>,
+    rows: Option<u32>,
 ) -> Result<String, String> {
     println!("[ssh_open_shell] start");
 
@@ -52,8 +54,13 @@ pub fn ssh_open_shell(
     let mut channel = sess
         .channel_session()
         .map_err(|e| format!("failed to open channel: {}", e))?;
+
+    // PTY 크기 설정 (기본값: 80x24)
+    let pty_cols = cols.unwrap_or(80);
+    let pty_rows = rows.unwrap_or(24);
+
     channel
-        .request_pty("xterm", None, None)
+        .request_pty("xterm", None, Some((pty_cols, pty_rows, 0, 0)))
         .map_err(|e| format!("failed to request pty: {}", e))?;
     channel
         .shell()
@@ -152,6 +159,22 @@ pub fn ssh_write(id: String, data: String) -> Result<(), String> {
         .channel
         .flush()
         .map_err(|e| format!("flush error: {}", e))?;
+
+    Ok(())
+}
+
+#[command]
+pub fn ssh_resize(id: String, cols: u32, rows: u32) -> Result<(), String> {
+    let map = SHELLS.lock().unwrap();
+    let shell = map
+        .get(&id)
+        .ok_or_else(|| format!("session {} not found", id))?;
+    let mut shell = shell.lock().unwrap();
+
+    shell
+        .channel
+        .request_pty_size(cols, rows, None, None)
+        .map_err(|e| format!("resize error: {}", e))?;
 
     Ok(())
 }
