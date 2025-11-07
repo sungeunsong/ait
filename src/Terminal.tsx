@@ -535,17 +535,17 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
                 }
               }
             }}
-            className="flex h-7 items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 hover:bg-red-500/20 transition-colors ring-1 ring-red-500/20"
+            className="flex h-8 items-center gap-2 rounded-lg bg-red-500/10 px-3 hover:bg-red-500/20 transition-colors ring-1 ring-red-500/20"
             title="Clear command history"
           >
-            <Trash2 size={12} className="text-red-400" />
-            <span className="text-xs text-red-400">Clear History</span>
+            <Trash2 size={14} className="text-red-400" />
+            <span className="text-sm text-red-400">Clear History</span>
           </button>
 
           {sessionId && (
-            <div className="flex items-center gap-2 rounded-full bg-green-500/10 px-3 py-1.5 ring-1 ring-green-500/20">
+            <div className="flex items-center gap-2 rounded-full bg-green-500/10 px-4 py-2 ring-1 ring-green-500/20">
               <div className="h-2 w-2 animate-pulse rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
-              <span className="text-xs font-medium text-green-400">Connected</span>
+              <span className="text-sm font-medium text-green-400">Connected</span>
             </div>
           )}
         </div>
