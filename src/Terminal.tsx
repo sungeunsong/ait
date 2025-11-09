@@ -326,60 +326,34 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         setSessionId(id);
         term.writeln(`✅ SSH connected (session: ${id})\r\n`);
 
-        // OS 정보 가져오기 (백그라운드에서)
+        // OS 정보 가져오기 (조용히, 터미널에 표시 안 됨)
         setTimeout(async () => {
           try {
-            // OS 정보를 가져오기 위한 명령어 전송
-            await invoke("ssh_write", {
+            const output = await invoke<string>("ssh_exec", {
               id,
-              data: "cat /etc/os-release 2>/dev/null || uname -s\n"
+              command: "cat /etc/os-release 2>/dev/null || uname -s"
             });
 
-            // 결과를 파싱하기 위한 임시 버퍼
-            let osBuffer = '';
-            let osDetectionDone = false;
+            // PRETTY_NAME 또는 NAME 찾기
+            const prettyMatch = output.match(/PRETTY_NAME="([^"]+)"/);
+            const nameMatch = output.match(/NAME="([^"]+)"/);
+            const versionMatch = output.match(/VERSION="([^"]+)"/);
 
-            const osListener = await listen<{ id: string; data: string }>(
-              "ssh:data",
-              (event) => {
-                if (event.payload.id === id && !osDetectionDone) {
-                  osBuffer += event.payload.data;
-
-                  // PRETTY_NAME 또는 NAME 찾기
-                  const prettyMatch = osBuffer.match(/PRETTY_NAME="([^"]+)"/);
-                  const nameMatch = osBuffer.match(/NAME="([^"]+)"/);
-                  const versionMatch = osBuffer.match(/VERSION="([^"]+)"/);
-
-                  if (prettyMatch || nameMatch) {
-                    const osName = prettyMatch ? prettyMatch[1] : nameMatch![1];
-                    const osVersion = versionMatch ? ` ${versionMatch[1]}` : '';
-                    const detectedOS = `${osName}${osVersion}`;
-
-                    console.log('[Terminal] Detected OS:', detectedOS);
-                    setOsInfo(detectedOS);
-                    osDetectionDone = true;
-                    osListener();  // unlisten
-                  }
-                  // uname 결과 감지 (fallback)
-                  else if (osBuffer.includes('Linux') || osBuffer.includes('Darwin')) {
-                    const unameMatch = osBuffer.match(/(Linux|Darwin|FreeBSD)/);
-                    if (unameMatch) {
-                      console.log('[Terminal] Detected OS (uname):', unameMatch[1]);
-                      setOsInfo(unameMatch[1]);
-                      osDetectionDone = true;
-                      osListener();
-                    }
-                  }
-
-                  // 타임아웃: 5초 후 정리
-                  setTimeout(() => {
-                    if (!osDetectionDone) {
-                      osListener();
-                    }
-                  }, 5000);
-                }
+            if (prettyMatch || nameMatch) {
+              const osName = prettyMatch ? prettyMatch[1] : nameMatch![1];
+              const osVersion = versionMatch ? ` ${versionMatch[1]}` : '';
+              const detectedOS = `${osName}${osVersion}`;
+              console.log('[Terminal] Detected OS:', detectedOS);
+              setOsInfo(detectedOS);
+            }
+            // uname 결과 감지 (fallback)
+            else {
+              const unameMatch = output.match(/(Linux|Darwin|FreeBSD)/);
+              if (unameMatch) {
+                console.log('[Terminal] Detected OS (uname):', unameMatch[1]);
+                setOsInfo(unameMatch[1]);
               }
-            );
+            }
           } catch (err) {
             console.error('[Terminal] Failed to detect OS:', err);
           }

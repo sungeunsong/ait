@@ -46,7 +46,7 @@ pub async fn ask_ollama(
     prompt: &str,
     context: Option<&str>,
 ) -> Result<AIResponse, Box<dyn Error>> {
-    // 시스템 프롬프트 구성
+    // 시스템 프롬프트 구성 (한글 응답 요청)
     let system_prompt = r#"You are an expert Linux/Unix system administrator and terminal assistant.
 
 Your responsibilities:
@@ -60,6 +60,8 @@ Response format:
 1. Brief explanation of the solution
 2. Command(s) in ```bash blocks
 3. Important notes or warnings if needed
+
+**IMPORTANT: Always respond in Korean (한국어). All explanations must be in Korean.**
 
 Keep responses focused and practical."#;
 

@@ -30,6 +30,7 @@ pub fn run() {
             ssh::ssh_write,
             ssh::ssh_resize,
             ssh::ssh_close,
+            ssh::ssh_exec,
             profile_create,
             profile_list,
             profile_get,

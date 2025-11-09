@@ -191,3 +191,35 @@ pub fn ssh_close(id: String) -> Result<(), String> {
         Err(format!("session {} not found", id))
     }
 }
+
+/// Execute a command silently without affecting the terminal display
+/// Returns the command output as a string
+#[command]
+pub fn ssh_exec(id: String, command: String) -> Result<String, String> {
+    let map = SHELLS.lock().unwrap();
+    let shell = map
+        .get(&id)
+        .ok_or_else(|| format!("session {} not found", id))?;
+    let shell_guard = shell.lock().unwrap();
+
+    // Create a new exec channel (separate from the shell channel)
+    let mut channel = shell_guard
+        .sess
+        .channel_session()
+        .map_err(|e| format!("failed to open exec channel: {}", e))?;
+
+    channel
+        .exec(&command)
+        .map_err(|e| format!("failed to exec command: {}", e))?;
+
+    let mut output = String::new();
+    channel
+        .read_to_string(&mut output)
+        .map_err(|e| format!("failed to read output: {}", e))?;
+
+    channel
+        .wait_close()
+        .map_err(|e| format!("failed to close channel: {}", e))?;
+
+    Ok(output)
+}
