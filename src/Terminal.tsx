@@ -46,6 +46,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const showDropdownRef = useRef<boolean>(false);
   const suggestionsRef = useRef<CommandSuggestion[]>([]);
   const selectedIndexRef = useRef<number>(0);
+  const showAIPanelRef = useRef<boolean>(false);
 
   // Sync refs with state
   useEffect(() => {
@@ -64,6 +65,10 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   useEffect(() => {
     selectedIndexRef.current = selectedIndex;
   }, [selectedIndex]);
+
+  useEffect(() => {
+    showAIPanelRef.current = showAIPanel;
+  }, [showAIPanel]);
 
   // Load font size from settings on mount
   useEffect(() => {
@@ -371,6 +376,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       const isDropdownOpen = showDropdownRef.current;
       const currentSuggestions = suggestionsRef.current;
       const currentIndex = selectedIndexRef.current;
+      const isAIPanelOpen = showAIPanelRef.current;
 
       // Debug key presses
       if (event.type === 'keydown') {
@@ -385,6 +391,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       }
 
       // → (오른쪽 화살표) 키로 인라인 제안 수락
+      // 단, 드롭다운이 열려있지 않고 인라인 제안이 있을 때만
       if (event.key === 'ArrowRight' && currentInline && !isDropdownOpen && event.type === 'keydown') {
         // 커서가 현재 입력의 끝에 있을 때만 동작
         const completionPart = currentInline.slice(currentCmd.length);
@@ -403,6 +410,8 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
           setInlineSuggestion('');
           return false;
         }
+        // 인라인 제안은 있지만 completionPart가 없으면 정상 전달
+        return true;
       }
 
       // Shift+Space 감지
@@ -421,17 +430,24 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       }
 
       // Esc 키로 드롭다운 또는 AI 패널 닫기
+      // 단, 드롭다운이나 AI 패널이 열려있을 때만 가로채기
       if (event.key === 'Escape' && event.type === 'keydown') {
-        event.preventDefault();
         if (isDropdownOpen) {
+          event.preventDefault();
           setShowDropdown(false);
-        } else {
-          setShowAIPanel(false);
+          return false;
         }
-        return false;
+        // AI 패널이 열려있을 때만 가로챔
+        if (isAIPanelOpen) {
+          event.preventDefault();
+          setShowAIPanel(false);
+          return false;
+        }
+        // 둘 다 열려있지 않으면 정상적으로 터미널로 전달 (vi/vim 등에서 사용)
+        return true;
       }
 
-      // ↑/↓ 키로 드롭다운 네비게이션
+      // ↑/↓ 키로 드롭다운 네비게이션 (드롭다운이 열려있을 때만)
       if (isDropdownOpen && event.type === 'keydown') {
         if (event.key === 'ArrowUp') {
           event.preventDefault();
@@ -441,6 +457,11 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         if (event.key === 'ArrowDown') {
           event.preventDefault();
           setSelectedIndex((prev) => Math.min(currentSuggestions.length - 1, prev + 1));
+          return false;
+        }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          // 드롭다운이 열려있을 때는 좌우 방향키도 차단
+          event.preventDefault();
           return false;
         }
         // Enter 키로 선택

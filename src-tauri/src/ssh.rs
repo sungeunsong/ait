@@ -60,8 +60,13 @@ pub fn ssh_open_shell(
     let pty_rows = rows.unwrap_or(24);
 
     channel
-        .request_pty("xterm", None, Some((pty_cols, pty_rows, 0, 0)))
+        .request_pty("xterm-256color", None, Some((pty_cols, pty_rows, 0, 0)))
         .map_err(|e| format!("failed to request pty: {}", e))?;
+
+    // Set environment variables for better terminal compatibility
+    // Note: Some SSH servers might restrict env vars, so we ignore errors
+    let _ = channel.setenv("TERM", "xterm-256color");
+
     channel
         .shell()
         .map_err(|e| format!("failed to start shell: {}", e))?;
