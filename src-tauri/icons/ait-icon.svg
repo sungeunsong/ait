@@ -1,0 +1,54 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="terminalGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:0.9" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:0.95" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Circle with Gradient -->
+  <circle cx="256" cy="256" r="240" fill="url(#bgGradient)"/>
+
+  <!-- Terminal Window -->
+  <rect x="100" y="140" width="312" height="232" rx="16" fill="url(#terminalGradient)" stroke="#ffffff" stroke-width="3" opacity="0.95"/>
+
+  <!-- Terminal Header Dots -->
+  <circle cx="125" cy="165" r="8" fill="#ef4444"/>
+  <circle cx="150" cy="165" r="8" fill="#f59e0b"/>
+  <circle cx="175" cy="165" r="8" fill="#22c55e"/>
+
+  <!-- Terminal Prompt Symbol -->
+  <text x="120" y="240" font-family="monospace" font-size="48" font-weight="bold" fill="#06b6d4">&gt;_</text>
+
+  <!-- AI Circuit Pattern -->
+  <!-- Central Node -->
+  <circle cx="290" cy="215" r="12" fill="#8b5cf6" stroke="#ffffff" stroke-width="2"/>
+
+  <!-- Circuit Lines -->
+  <line x1="290" y1="215" x2="350" y2="190" stroke="#8b5cf6" stroke-width="3" opacity="0.8"/>
+  <line x1="290" y1="215" x2="350" y2="240" stroke="#8b5cf6" stroke-width="3" opacity="0.8"/>
+  <line x1="290" y1="215" x2="320" y2="270" stroke="#8b5cf6" stroke-width="3" opacity="0.8"/>
+
+  <!-- Circuit Nodes -->
+  <circle cx="350" cy="190" r="8" fill="#06b6d4" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="350" cy="240" r="8" fill="#06b6d4" stroke="#ffffff" stroke-width="2"/>
+  <circle cx="320" cy="270" r="8" fill="#06b6d4" stroke="#ffffff" stroke-width="2"/>
+
+  <!-- Small connecting nodes -->
+  <circle cx="315" cy="200" r="4" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="315" y="230" r="4" fill="#8b5cf6" opacity="0.6"/>
+  <circle cx="300" cy="245" r="4" fill="#8b5cf6" opacity="0.6"/>
+
+  <!-- Terminal Cursor Blink -->
+  <rect x="195" y="215" width="20" height="35" fill="#06b6d4" opacity="0.8"/>
+
+  <!-- Bottom AI Neural Wave Pattern -->
+  <path d="M 120 310 Q 140 300, 160 310 T 200 310 T 240 310 T 280 310 T 320 310 T 360 310 T 390 310"
+        stroke="#8b5cf6" stroke-width="3" fill="none" opacity="0.6"/>
+  <path d="M 120 330 Q 140 340, 160 330 T 200 330 T 240 330 T 280 330 T 320 330 T 360 330 T 390 330"
+        stroke="#06b6d4" stroke-width="3" fill="none" opacity="0.6"/>
+</svg>
