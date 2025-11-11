@@ -76,7 +76,8 @@ export const AIPanel: React.FC<AIPanelProps> = ({
             }
           }
         }).catch((err) => {
-          console.error('[AIPanel] Failed to detect OS:', err);
+          // OS 감지 실패는 무시 (선택사항이므로)
+          console.log('[AIPanel] OS detection skipped:', err);
         });
       }
     }
