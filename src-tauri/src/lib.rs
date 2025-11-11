@@ -2,6 +2,7 @@ mod ai;
 mod commands_dict;
 mod db;
 mod history;
+mod macros;
 mod profile;
 mod settings;
 mod ssh;
@@ -46,6 +47,9 @@ pub fn run() {
             settings_get_all,
             ai_ask,
             ai_extract_commands,
+            macros_get,
+            macros_set,
+            macros_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -191,4 +195,37 @@ async fn ai_ask(
 #[tauri::command]
 fn ai_extract_commands(response: String) -> Result<Vec<String>, String> {
     Ok(ai::extract_commands(&response))
+}
+
+// ============================================================================
+// Macros Commands
+// ============================================================================
+
+#[tauri::command]
+fn macros_get(
+    state: State<AppState>,
+    profile_id: Option<String>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    macros::get_macros(conn, profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn macros_set(
+    state: State<AppState>,
+    profile_id: Option<String>,
+    macro_key: String,
+    command: String,
+) -> Result<(), String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    macros::set_macro(conn, profile_id, macro_key, command).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn macros_delete(state: State<AppState>, profile_id: Option<String>) -> Result<(), String> {
+    let db_guard = state.db.lock().unwrap();
+    let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+    macros::delete_macros(conn, profile_id).map_err(|e| e.to_string())
 }

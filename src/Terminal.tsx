@@ -6,11 +6,12 @@ import "xterm/css/xterm.css";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ServerProfile } from "./ProfileList";
-import { Server, Trash2 } from "lucide-react";
+import { Server, Trash2, Settings } from "lucide-react";
 import { useCommandInput } from "./hooks/useCommandInput";
 import { AutocompleteDropdown, CommandSuggestion } from "./components/AutocompleteDropdown";
 import { InlineOverlay } from "./components/InlineOverlay";
 import { AIPanel } from "./components/AIPanel";
+import { MacroSettings } from "./components/MacroSettings";
 
 interface SshTerminalProps {
   profile: ServerProfile;
@@ -40,6 +41,10 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   // AI Panel state
   const [showAIPanel, setShowAIPanel] = useState(false);
 
+  // Macros state
+  const [macros, setMacros] = useState<Record<string, string>>({});
+  const [showMacroSettings, setShowMacroSettings] = useState(false);
+
   // Refs for state access in event handlers
   const inlineSuggestionRef = useRef<string>('');
   const currentInputRef = useRef<string>('');
@@ -47,6 +52,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const suggestionsRef = useRef<CommandSuggestion[]>([]);
   const selectedIndexRef = useRef<number>(0);
   const showAIPanelRef = useRef<boolean>(false);
+  const macrosRef = useRef<Record<string, string>>({});
 
   // Sync refs with state
   useEffect(() => {
@@ -69,6 +75,34 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   useEffect(() => {
     showAIPanelRef.current = showAIPanel;
   }, [showAIPanel]);
+
+  useEffect(() => {
+    macrosRef.current = macros;
+  }, [macros]);
+
+  // Load macros from backend
+  const loadMacros = async () => {
+    try {
+      // Load global macros first
+      const globalMacros = await invoke<Record<string, string>>("macros_get", {
+        profileId: null,
+      });
+
+      // Load profile-specific macros (overrides global)
+      const profileMacros = await invoke<Record<string, string>>("macros_get", {
+        profileId: profile.id,
+      });
+
+      // Merge: profile-specific overrides global
+      setMacros({ ...globalMacros, ...profileMacros });
+    } catch (error) {
+      console.error("[Terminal] Failed to load macros:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadMacros();
+  }, [profile.id]);
 
   // Load font size from settings on mount
   useEffect(() => {
@@ -460,6 +494,31 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         return false; // 이벤트 전파 중단
       }
 
+      // Ctrl+1~0: 매크로 실행
+      if (event.ctrlKey && event.type === 'keydown' && /^[0-9]$/.test(event.key)) {
+        event.preventDefault();
+
+        const currentMacros = macrosRef.current;
+        const macroKey = event.key === '0' ? '10' : event.key; // Ctrl+0 = 10번 매크로
+        const command = currentMacros[macroKey];
+
+        if (command) {
+          console.log(`[Terminal] Executing macro ${macroKey}: ${command}`);
+
+          const id = sessionIdRef.current;
+          if (id) {
+            // 현재 입력 지우기 (Ctrl+U) + 명령어 입력 (엔터 안 누름)
+            invoke("ssh_write", { id, data: '\x15' + command }).catch((err) => {
+              console.error("[ssh_write error]", err);
+            });
+          }
+        } else {
+          console.log(`[Terminal] No macro defined for Ctrl+${event.key}`);
+        }
+
+        return false; // 이벤트 전파 중단
+      }
+
       // Ctrl+Space로 AI 패널 토글
       if (event.key === ' ' && event.ctrlKey && event.type === 'keydown') {
         event.preventDefault();
@@ -628,6 +687,16 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
             </button>
           </div> */}
 
+          {/* Macro settings button */}
+          <button
+            onClick={() => setShowMacroSettings(true)}
+            className="flex h-8 items-center gap-2 rounded-lg bg-purple-500/10 px-3 hover:bg-purple-500/20 transition-colors ring-1 ring-purple-500/20"
+            title="Configure macros (Ctrl+1~0)"
+          >
+            <Settings size={14} className="text-purple-400" />
+            <span className="text-sm text-purple-400">Macros</span>
+          </button>
+
           {/* Clear history button */}
           <button
             onClick={async () => {
@@ -736,6 +805,18 @@ ${osInfo ? `Operating System: ${osInfo}` : ''}
 Note: User is working in an SSH terminal session. Provide commands appropriate for this specific OS distribution.
 `.trim()}
         />
+
+        {/* Macro Settings Modal */}
+        {showMacroSettings && (
+          <MacroSettings
+            profileId={profile.id}
+            profileName={profile.name}
+            onClose={() => {
+              setShowMacroSettings(false);
+              loadMacros(); // Reload macros after closing settings
+            }}
+          />
+        )}
       </div>
     </div>
   );
