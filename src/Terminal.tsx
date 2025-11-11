@@ -333,6 +333,9 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         setSessionId(id);
         term.writeln(`✅ SSH connected (session: ${id})\r\n`);
 
+        // 연결 성공 후 터미널에 자동 포커스
+        term.focus();
+
         // OS 정보 가져오기 (조용히, 터미널에 표시 안 됨)
         setTimeout(async () => {
           try {
