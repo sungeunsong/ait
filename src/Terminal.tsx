@@ -23,7 +23,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const sessionIdRef = useRef<string | null>(null); // ← 새로 추가: effect 안에서 쓸용
   const [sessionId, setSessionId] = useState<string | null>(null); // 화면에 보여줄 용도만
-  const [fontSize, setFontSize] = useState<number>(16); // Default font size
+  const [fontSize, setFontSize] = useState<number>(14); // Default font size (16 → 14)
   const [osInfo, setOsInfo] = useState<string>(''); // OS 정보
 
   // Autocomplete dropdown state
@@ -303,6 +303,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       // SSH 서버에도 PTY 크기 변경 알림
       const id = sessionIdRef.current;
       if (id && term.cols && term.rows) {
+        console.log(`[Terminal] Window resized - updating PTY size to ${term.cols}x${term.rows}`);
         invoke("ssh_resize", {
           id,
           cols: term.cols,
