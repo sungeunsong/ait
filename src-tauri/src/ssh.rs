@@ -88,7 +88,22 @@ pub fn ssh_open_shell(
 
     thread::spawn(move || {
         println!("[ssh_reader:{}] started", id_for_thread);
-        let mut buf = [0u8; 1024];
+        let mut buf = [0u8; 4096]; // 1KB → 4KB로 증가
+        let mut output_buffer = String::new();
+        let mut last_emit = std::time::Instant::now();
+
+        // Helper function to check if we should flush the buffer immediately
+        let should_flush_immediately = |buffer: &str| -> bool {
+            buffer.contains("password:")        // 비밀번호 프롬프트
+            || buffer.contains("Password:")
+            || buffer.contains("[y/n]")         // 확인 프롬프트
+            || buffer.contains("[Y/n]")
+            || buffer.contains("(y/n)")
+            || buffer.contains("$ ")            // 쉘 프롬프트
+            || buffer.contains("# ")            // root 프롬프트
+            || buffer.ends_with("\n")           // 개행 포함
+            || buffer.contains("\x1b[")         // ANSI escape (vi, top 등)
+        };
 
         loop {
             let mut guard = match shell_for_thread.lock() {
@@ -98,7 +113,17 @@ pub fn ssh_open_shell(
 
             match guard.channel.read(&mut buf) {
                 Ok(0) => {
-                    // EOF
+                    // EOF - flush remaining buffer first
+                    if !output_buffer.is_empty() {
+                        let _ = win_for_thread.emit_to(
+                            &win_for_thread.label(),
+                            "ssh:data",
+                            serde_json::json!({
+                                "id": id_for_thread,
+                                "data": output_buffer,
+                            }),
+                        );
+                    }
                     let _ = win_for_thread.emit_to(
                         &win_for_thread.label(),
                         "ssh:data",
@@ -112,18 +137,42 @@ pub fn ssh_open_shell(
                 }
                 Ok(n) => {
                     let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = win_for_thread.emit_to(
-                        &win_for_thread.label(),
-                        "ssh:data",
-                        serde_json::json!({
-                            "id": id_for_thread,
-                            "data": chunk,
-                        }),
-                    );
+                    output_buffer.push_str(&chunk);
+
+                    // Smart buffering: flush if needed
+                    let should_flush =
+                        last_emit.elapsed().as_millis() > 100          // 100ms 경과
+                        || output_buffer.len() > 4096                   // 4KB 초과
+                        || should_flush_immediately(&output_buffer);    // 즉시 전송 조건
+
+                    if should_flush {
+                        let _ = win_for_thread.emit_to(
+                            &win_for_thread.label(),
+                            "ssh:data",
+                            serde_json::json!({
+                                "id": id_for_thread,
+                                "data": output_buffer.clone(),
+                            }),
+                        );
+                        output_buffer.clear();
+                        last_emit = std::time::Instant::now();
+                    }
                 }
                 Err(e) => {
                     if e.kind() == std::io::ErrorKind::WouldBlock {
-                        // 읽을 게 없으면 잠깐 쉼
+                        // 읽을 게 없으면 버퍼에 남은 게 있는지 확인
+                        if !output_buffer.is_empty() && last_emit.elapsed().as_millis() > 100 {
+                            let _ = win_for_thread.emit_to(
+                                &win_for_thread.label(),
+                                "ssh:data",
+                                serde_json::json!({
+                                    "id": id_for_thread,
+                                    "data": output_buffer.clone(),
+                                }),
+                            );
+                            output_buffer.clear();
+                            last_emit = std::time::Instant::now();
+                        }
                     } else {
                         let _ = win_for_thread.emit_to(
                             &win_for_thread.label(),
