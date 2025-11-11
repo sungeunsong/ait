@@ -12,6 +12,9 @@ interface AIPanelProps {
   onClose: () => void;
   onInsertCommand: (command: string) => void;
   context?: string;
+  sessionId: string | null;
+  osInfo: string;
+  onOsInfoUpdate: (osInfo: string) => void;
 }
 
 export const AIPanel: React.FC<AIPanelProps> = ({
@@ -19,6 +22,9 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   onClose,
   onInsertCommand,
   context,
+  sessionId,
+  osInfo,
+  onOsInfoUpdate,
 }) => {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,9 +37,10 @@ export const AIPanel: React.FC<AIPanelProps> = ({
   const [model, setModel] = useState('gpt-oss:20b');
   const [showSettings, setShowSettings] = useState(false);
 
-  // 설정 로드
+  // 설정 로드 및 OS 정보 가져오기
   useEffect(() => {
     if (isOpen) {
+      // AI 설정 로드
       Promise.all([
         invoke<string | null>('settings_get', { key: 'ai_server_url' }),
         invoke<string | null>('settings_get', { key: 'ai_model' }),
@@ -41,8 +48,39 @@ export const AIPanel: React.FC<AIPanelProps> = ({
         if (savedUrl) setServerUrl(savedUrl);
         if (savedModel) setModel(savedModel);
       }).catch(console.error);
+
+      // OS 정보가 없으면 가져오기
+      if (!osInfo && sessionId) {
+        console.log('[AIPanel] Fetching OS info...');
+        invoke<string>('ssh_exec', {
+          id: sessionId,
+          command: 'cat /etc/os-release 2>/dev/null || uname -s'
+        }).then((output) => {
+          // PRETTY_NAME 또는 NAME 찾기
+          const prettyMatch = output.match(/PRETTY_NAME="([^"]+)"/);
+          const nameMatch = output.match(/NAME="([^"]+)"/);
+          const versionMatch = output.match(/VERSION="([^"]+)"/);
+
+          if (prettyMatch || nameMatch) {
+            const osName = prettyMatch ? prettyMatch[1] : nameMatch![1];
+            const osVersion = versionMatch ? ` ${versionMatch[1]}` : '';
+            const detectedOS = `${osName}${osVersion}`;
+            console.log('[AIPanel] Detected OS:', detectedOS);
+            onOsInfoUpdate(detectedOS);
+          } else {
+            // uname 결과 감지 (fallback)
+            const unameMatch = output.match(/(Linux|Darwin|FreeBSD)/);
+            if (unameMatch) {
+              console.log('[AIPanel] Detected OS (uname):', unameMatch[1]);
+              onOsInfoUpdate(unameMatch[1]);
+            }
+          }
+        }).catch((err) => {
+          console.error('[AIPanel] Failed to detect OS:', err);
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, osInfo, sessionId, onOsInfoUpdate]);
 
   // 설정 저장
   const saveSettings = async () => {

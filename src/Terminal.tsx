@@ -292,26 +292,41 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
     // 3) DOM에 붙이기
     if (containerRef.current) {
       term.open(containerRef.current);
-      // 초기 fit
-      setTimeout(() => fitAddon.fit(), 0);
+      // 초기 fit - DOM이 완전히 렌더링될 때까지 대기
+      setTimeout(() => {
+        fitAddon.fit();
+        console.log(`[Terminal] Initial fit: ${term.cols}x${term.rows}`);
+      }, 50);
     }
 
     // 4) ResizeObserver로 창 크기 변화 감지
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
-
-      // SSH 서버에도 PTY 크기 변경 알림
-      const id = sessionIdRef.current;
-      if (id && term.cols && term.rows) {
-        console.log(`[Terminal] Window resized - updating PTY size to ${term.cols}x${term.rows}`);
-        invoke("ssh_resize", {
-          id,
-          cols: term.cols,
-          rows: term.rows,
-        }).catch((err) => {
-          console.error("[ssh_resize error]", err);
-        });
+      // Debounce to avoid multiple rapid resize calls
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
       }
+
+      resizeTimeout = setTimeout(() => {
+        try {
+          fitAddon.fit();
+
+          // SSH 서버에도 PTY 크기 변경 알림
+          const id = sessionIdRef.current;
+          if (id && term.cols && term.rows && term.cols > 0 && term.rows > 0) {
+            console.log(`[Terminal] Window resized - updating PTY size to ${term.cols}x${term.rows}`);
+            invoke("ssh_resize", {
+              id,
+              cols: term.cols,
+              rows: term.rows,
+            }).catch((err) => {
+              console.error("[ssh_resize error]", err);
+            });
+          }
+        } catch (error) {
+          console.error("[Terminal] Resize error:", error);
+        }
+      }, 100); // 100ms debounce
     });
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current);
@@ -351,16 +366,23 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
 
         term.writeln(`🔐 Authenticating...\r\n`);
 
-        // 초기 fit 후 터미널 크기 확인
+        // 터미널 크기가 제대로 계산될 때까지 대기
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // 최종 fit으로 정확한 크기 계산
         fitAddon.fit();
+
+        const finalCols = term.cols || 80;
+        const finalRows = term.rows || 24;
+        console.log(`[Terminal] Connecting with PTY size: ${finalCols}x${finalRows}`);
 
         const id = await invoke<string>("ssh_open_shell", {
           host: profile.host,
           port: profile.port,
           user: profile.user,
           password: profile.password,
-          cols: term.cols || 80,
-          rows: term.rows || 24,
+          cols: finalCols,
+          rows: finalRows,
         });
 
         // ref에도 저장, state에도 저장
@@ -368,41 +390,28 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         setSessionId(id);
         term.writeln(`✅ SSH connected (session: ${id})\r\n`);
 
+        // 연결 성공 후 터미널 크기 한 번 더 확인 (보험)
+        setTimeout(() => {
+          const currentCols = term.cols || 80;
+          const currentRows = term.rows || 24;
+
+          // 크기가 변경되었다면 업데이트
+          if (currentCols !== finalCols || currentRows !== finalRows) {
+            console.log(`[Terminal] PTY size changed: ${finalCols}x${finalRows} → ${currentCols}x${currentRows}`);
+            invoke("ssh_resize", {
+              id,
+              cols: currentCols,
+              rows: currentRows,
+            }).catch((err) => {
+              console.error("[ssh_resize error on post-connect check]", err);
+            });
+          } else {
+            console.log(`[Terminal] PTY size stable at ${currentCols}x${currentRows}`);
+          }
+        }, 200);
+
         // 연결 성공 후 터미널에 자동 포커스
         term.focus();
-
-        // OS 정보 가져오기 (조용히, 터미널에 표시 안 됨)
-        setTimeout(async () => {
-          try {
-            const output = await invoke<string>("ssh_exec", {
-              id,
-              command: "cat /etc/os-release 2>/dev/null || uname -s"
-            });
-
-            // PRETTY_NAME 또는 NAME 찾기
-            const prettyMatch = output.match(/PRETTY_NAME="([^"]+)"/);
-            const nameMatch = output.match(/NAME="([^"]+)"/);
-            const versionMatch = output.match(/VERSION="([^"]+)"/);
-
-            if (prettyMatch || nameMatch) {
-              const osName = prettyMatch ? prettyMatch[1] : nameMatch![1];
-              const osVersion = versionMatch ? ` ${versionMatch[1]}` : '';
-              const detectedOS = `${osName}${osVersion}`;
-              console.log('[Terminal] Detected OS:', detectedOS);
-              setOsInfo(detectedOS);
-            }
-            // uname 결과 감지 (fallback)
-            else {
-              const unameMatch = output.match(/(Linux|Darwin|FreeBSD)/);
-              if (unameMatch) {
-                console.log('[Terminal] Detected OS (uname):', unameMatch[1]);
-                setOsInfo(unameMatch[1]);
-              }
-            }
-          } catch (err) {
-            console.error('[Terminal] Failed to detect OS:', err);
-          }
-        }, 1000); // 연결 후 1초 대기
       } catch (e) {
         term.writeln(`\r\n❌ SSH connection failed: ${String(e)}\r\n`);
         console.error("[Terminal] Connection error:", e);
@@ -418,17 +427,17 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       const currentIndex = selectedIndexRef.current;
       const isAIPanelOpen = showAIPanelRef.current;
 
-      // Debug key presses
-      if (event.type === 'keydown') {
-        console.log('[Terminal] Key pressed:', {
-          key: event.key,
-          shiftKey: event.shiftKey,
-          ctrlKey: event.ctrlKey,
-          currentInline,
-          currentCmd,
-          isDropdownOpen
-        });
-      }
+      // Debug key presses (commented out to reduce console spam)
+      // if (event.type === 'keydown') {
+      //   console.log('[Terminal] Key pressed:', {
+      //     key: event.key,
+      //     shiftKey: event.shiftKey,
+      //     ctrlKey: event.ctrlKey,
+      //     currentInline,
+      //     currentCmd,
+      //     isDropdownOpen
+      //   });
+      // }
 
       // Ctrl+C: 선택된 텍스트가 있으면 복사, 없으면 SIGINT 전송
       if (event.key === 'c' && event.ctrlKey && event.type === 'keydown') {
@@ -638,9 +647,22 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
 
     // 7) cleanup
     return () => {
-      resizeObserver.disconnect();
-      unlistenPromise.then((un) => un());
-      term.dispose();
+      try {
+        resizeObserver.disconnect();
+      } catch (e) {
+        console.error('[Terminal] ResizeObserver disconnect error:', e);
+      }
+
+      unlistenPromise.then((un) => un()).catch(() => {});
+
+      try {
+        if (term) {
+          term.dispose();
+        }
+      } catch (e) {
+        console.error('[Terminal] Terminal dispose error:', e);
+      }
+
       const id = sessionIdRef.current;
       if (id) {
         invoke("ssh_close", { id }).catch(() => {});
@@ -798,6 +820,9 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
               });
             }
           }}
+          sessionId={sessionId}
+          osInfo={osInfo}
+          onOsInfoUpdate={setOsInfo}
           context={`
 SSH Connection: ${profile.user}@${profile.host}:${profile.port}
 Profile: ${profile.name}

@@ -7,7 +7,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{command, Emitter, WebviewWindow};
+use tauri::{command, Emitter, WebviewWindow, Runtime};
 use uuid::Uuid;
 
 struct ShellSession {
@@ -253,14 +253,40 @@ pub fn ssh_exec(id: String, command: String) -> Result<String, String> {
     let map = SHELLS.lock().unwrap();
     let shell = map
         .get(&id)
-        .ok_or_else(|| format!("session {} not found", id))?;
-    let shell_guard = shell.lock().unwrap();
+        .ok_or_else(|| format!("session {} not found", id))?
+        .clone();
+    drop(map); // Release the global lock early
 
-    // Create a new exec channel (separate from the shell channel)
-    let mut channel = shell_guard
-        .sess
-        .channel_session()
-        .map_err(|e| format!("failed to open exec channel: {}", e))?;
+    // Retry opening a new exec channel if WouldBlock
+    let mut channel = None;
+    let max_retries = 5;
+
+    for attempt in 0..max_retries {
+        let shell_guard = shell.lock().unwrap();
+
+        match shell_guard.sess.channel_session() {
+            Ok(ch) => {
+                channel = Some(ch);
+                break;
+            }
+            Err(e) => {
+                // Check if error message contains "Would block" (ssh2::Error doesn't have kind())
+                let err_msg = format!("{}", e);
+                let is_would_block = err_msg.contains("Would block") || err_msg.contains("EAGAIN");
+
+                if is_would_block && attempt < max_retries - 1 {
+                    // Session is busy, wait a bit and retry
+                    drop(shell_guard);
+                    thread::sleep(Duration::from_millis(100));
+                    continue;
+                } else {
+                    return Err(format!("failed to open exec channel after {} attempts: {}", attempt + 1, e));
+                }
+            }
+        }
+    }
+
+    let mut channel = channel.ok_or_else(|| "failed to open exec channel".to_string())?;
 
     channel
         .exec(&command)
