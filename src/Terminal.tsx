@@ -240,7 +240,9 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       fontSize: fontSize,
       fontFamily: '"Cascadia Code", "Consolas", "DejaVu Sans Mono", "Courier New", monospace',
       cursorBlink: true,
-      convertEol: true,
+      // convertEol을 제거: \r (carriage return)을 올바르게 처리하여
+      // docker, npm 등의 프로그레스 애니메이션이 같은 줄에서 업데이트되도록 함
+      scrollback: 10000, // 스크롤백 버퍼 크기 증가 (기본 1000)
       theme: {
         background: "#1e1e1e",
         foreground: "#dcdcdc",
