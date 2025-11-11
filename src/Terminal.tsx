@@ -371,7 +371,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
       }
     })();
 
-    // 5) Shift+Space 키 이벤트 감지 (autocomplete 트리거)
+    // 5) 키 이벤트 감지 (Shift+Space, Ctrl+C/V, etc.)
     term.attachCustomKeyEventHandler((event) => {
       const currentInline = inlineSuggestionRef.current;
       const currentCmd = currentInputRef.current;
@@ -390,6 +390,39 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
           currentCmd,
           isDropdownOpen
         });
+      }
+
+      // Ctrl+C: 선택된 텍스트가 있으면 복사, 없으면 SIGINT 전송
+      if (event.key === 'c' && event.ctrlKey && event.type === 'keydown') {
+        const selection = term.getSelection();
+        if (selection) {
+          event.preventDefault();
+          navigator.clipboard.writeText(selection).then(() => {
+            console.log('[Terminal] Copied to clipboard:', selection);
+          }).catch((err) => {
+            console.error('[Terminal] Failed to copy:', err);
+          });
+          return false;
+        }
+        // 선택된 텍스트가 없으면 Ctrl+C를 터미널로 전달 (SIGINT)
+        return true;
+      }
+
+      // Ctrl+V: 클립보드에서 붙여넣기
+      if (event.key === 'v' && event.ctrlKey && event.type === 'keydown') {
+        event.preventDefault();
+        navigator.clipboard.readText().then((text) => {
+          const id = sessionIdRef.current;
+          if (id && text) {
+            console.log('[Terminal] Pasting from clipboard:', text);
+            invoke("ssh_write", { id, data: text }).catch((err) => {
+              console.error("[ssh_write error]", err);
+            });
+          }
+        }).catch((err) => {
+          console.error('[Terminal] Failed to paste:', err);
+        });
+        return false;
       }
 
       // → (오른쪽 화살표) 키로 인라인 제안 수락
