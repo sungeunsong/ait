@@ -1,6 +1,7 @@
 use rusqlite::{params, Connection, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use keyring::Entry;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
@@ -10,7 +11,8 @@ pub struct Profile {
     pub port: u16,
     pub user: String,
     pub auth_type: String, // "password" or "key"
-    pub password: Option<String>, // TODO: Move to OS Keychain for security
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>, // Fallback storage when keyring unavailable
     pub profile_group: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -38,10 +40,136 @@ pub struct UpdateProfileInput {
     pub profile_group: Option<String>,
 }
 
+/// Check if keyring should be used based on environment
+fn is_keyring_available() -> bool {
+    // Check environment variable first
+    if let Ok(env) = std::env::var("AIT_ENV") {
+        if env.to_lowercase() == "dev" || env.to_lowercase() == "development" {
+            println!("[Keyring] AIT_ENV={} detected - using database fallback", env);
+            return false;
+        }
+    }
+
+    // In production, try to use keyring
+    match Entry::new("ait", "__test__") {
+        Ok(entry) => {
+            // Try to set/get a test password
+            match entry.set_password("test") {
+                Ok(_) => {
+                    // Verify we can actually retrieve it
+                    match entry.get_password() {
+                        Ok(retrieved) if retrieved == "test" => {
+                            let _ = entry.delete_credential();
+                            true
+                        }
+                        _ => {
+                            let _ = entry.delete_credential();
+                            false
+                        }
+                    }
+                }
+                Err(_) => false,
+            }
+        }
+        Err(_) => false,
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref KEYRING_AVAILABLE: bool = {
+        let available = is_keyring_available();
+        if available {
+            println!("[Keyring] OS Keychain available - using secure storage");
+        } else {
+            println!("[Keyring] OS Keychain NOT available - using database fallback");
+        }
+        available
+    };
+}
+
+/// Get keyring entry for a profile
+fn get_keyring_entry(profile_id: &str) -> Result<Entry, String> {
+    Entry::new("ait", profile_id).map_err(|e| format!("Failed to access keyring: {}", e))
+}
+
+/// Store password (keyring or database fallback)
+pub fn store_password(profile_id: &str, password: &str) -> Result<(), String> {
+    if *KEYRING_AVAILABLE {
+        // Use OS keychain
+        println!("[Keyring] Storing password in OS keychain for profile: {}", profile_id);
+        let entry = get_keyring_entry(profile_id)?;
+        match entry.set_password(password) {
+            Ok(_) => {
+                println!("[Keyring] ✓ Password stored in keychain");
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("[Keyring] ✗ Failed to store in keychain: {}", e);
+                Err(format!("Failed to store password: {}", e))
+            }
+        }
+    } else {
+        // Fallback: Return Ok (password will be stored in database by caller)
+        println!("[Keyring] Using database fallback for profile: {}", profile_id);
+        Ok(())
+    }
+}
+
+/// Retrieve password (keyring or database fallback)
+pub fn get_password(profile_id: &str) -> Result<Option<String>, String> {
+    if *KEYRING_AVAILABLE {
+        // Use OS keychain
+        println!("[Keyring] Retrieving password from OS keychain for profile: {}", profile_id);
+        let entry = get_keyring_entry(profile_id)?;
+        match entry.get_password() {
+            Ok(password) => {
+                println!("[Keyring] ✓ Password retrieved from keychain");
+                Ok(Some(password))
+            }
+            Err(keyring::Error::NoEntry) => {
+                println!("[Keyring] ⚠ No password in keychain");
+                Ok(None)
+            }
+            Err(e) => {
+                eprintln!("[Keyring] ✗ Failed to retrieve from keychain: {}", e);
+                Err(format!("Failed to retrieve password: {}", e))
+            }
+        }
+    } else {
+        // Fallback: Return None (password should be in database)
+        println!("[Keyring] Using database fallback for profile: {}", profile_id);
+        Ok(None)
+    }
+}
+
+/// Delete password from OS keychain
+pub fn delete_password(profile_id: &str) -> Result<(), String> {
+    let entry = get_keyring_entry(profile_id)?;
+    match entry.delete_credential() {
+        Ok(_) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()), // Already deleted
+        Err(e) => Err(format!("Failed to delete password: {}", e)),
+    }
+}
+
 /// Create a new profile
 pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Profile> {
     let now = chrono::Utc::now().timestamp();
     let id = Uuid::new_v4().to_string();
+
+    let db_password = if let Some(ref password) = input.password {
+        if *KEYRING_AVAILABLE {
+            // Store in keychain, don't store in DB
+            store_password(&id, password)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))))?;
+            None
+        } else {
+            // Store in database (fallback)
+            Some(password.clone())
+        }
+    } else {
+        None
+    };
 
     let profile = Profile {
         id: id.clone(),
@@ -50,7 +178,7 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
         port: input.port,
         user: input.user,
         auth_type: input.auth_type,
-        password: input.password,
+        password: db_password.clone(),
         profile_group: input.profile_group,
         created_at: now,
         updated_at: now,
@@ -66,7 +194,7 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
             profile.port,
             &profile.user,
             &profile.auth_type,
-            &profile.password,
+            &db_password,
             &profile.profile_group,
             profile.created_at,
             profile.updated_at,
@@ -174,6 +302,9 @@ pub fn update_profile(conn: &Connection, input: UpdateProfileInput) -> Result<Pr
 
 /// Delete a profile
 pub fn delete_profile(conn: &Connection, id: &str) -> Result<()> {
+    // Delete password from keychain first
+    let _ = delete_password(id); // Ignore errors if password doesn't exist
+
     conn.execute("DELETE FROM profiles WHERE id = ?1", [id])?;
     Ok(())
 }

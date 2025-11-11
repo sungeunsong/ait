@@ -37,6 +37,8 @@ pub fn run() {
             profile_get,
             profile_update,
             profile_delete,
+            profile_get_password,
+            profile_set_password,
             history_save,
             history_search,
             history_suggestions,
@@ -94,6 +96,16 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     profile::delete_profile(conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn profile_get_password(profile_id: String) -> Result<Option<String>, String> {
+    profile::get_password(&profile_id)
+}
+
+#[tauri::command]
+fn profile_set_password(profile_id: String, password: String) -> Result<(), String> {
+    profile::store_password(&profile_id, &password)
 }
 
 #[tauri::command]

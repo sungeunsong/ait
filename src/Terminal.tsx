@@ -349,18 +349,22 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
         term.writeln("🔌 AIT SSH Terminal Ready\r\n");
         term.writeln(`🔌 Connecting to ${profile.user}@${profile.host}:${profile.port}...\r\n`);
 
-        // Debug: Check if password exists
-        console.log("[Terminal] Profile:", {
-          name: profile.name,
-          host: profile.host,
-          hasPassword: !!profile.password,
-          passwordLength: profile.password?.length || 0
+        // Get password from keyring or database fallback
+        term.writeln(`🔐 Retrieving credentials...\r\n`);
+        let password = await invoke<string | null>("profile_get_password", {
+          profileId: profile.id,
         });
 
-        if (!profile.password) {
+        // If keyring unavailable, check profile object (database fallback)
+        if (!password && (profile as any).password) {
+          password = (profile as any).password;
+          console.log("[Terminal] Using password from database fallback");
+        }
+
+        if (!password) {
           term.writeln(`❌ Error: Password not available for this profile\r\n`);
           term.writeln(`💡 Please edit the profile and add a password\r\n`);
-          console.error("[Terminal] No password in profile:", profile);
+          console.error("[Terminal] No password available for profile:", profile.id);
           return;
         }
 
@@ -380,7 +384,7 @@ export const SshTerminal: React.FC<SshTerminalProps> = ({ profile }) => {
           host: profile.host,
           port: profile.port,
           user: profile.user,
-          password: profile.password,
+          password: password,
           cols: finalCols,
           rows: finalRows,
         });

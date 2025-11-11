@@ -9,7 +9,7 @@ export interface ServerProfile {
   host: string;
   port: number;
   user: string;
-  password?: string;
+  password?: string; // Database fallback when keyring unavailable
   profile_group?: string;
   auth_type?: string;
   created_at?: number;
