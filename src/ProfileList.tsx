@@ -123,6 +123,18 @@ export const ProfileList: React.FC<ProfileListProps> = ({
     }
   };
 
+  const debugCredentials = async () => {
+    setTestResult(null);
+    try {
+      const result = await invoke<string>("debug_list_credentials");
+      setTestResult({ success: true, message: result });
+      console.log("[Debug]", result);
+    } catch (error) {
+      setTestResult({ success: false, message: String(error) });
+      console.error("[Debug] Failed:", error);
+    }
+  };
+
   // Open log file
   const openLogFile = async () => {
     try {
@@ -157,21 +169,28 @@ export const ProfileList: React.FC<ProfileListProps> = ({
 
       {/* Debug Tools */}
       <div className="border-b border-gray-800/50 px-4 py-2 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={testKeyring}
-            className="rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+            className="rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
             title="Test Windows Credential Manager"
           >
             🔐 Test
           </button>
           <button
+            onClick={debugCredentials}
+            className="rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+            title="Debug credential storage"
+          >
+            🔍 Debug
+          </button>
+          <button
             onClick={openLogFile}
-            className="flex items-center justify-center gap-1 rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+            className="flex items-center justify-center gap-1 rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
             title="Open log file"
           >
             <FileText size={12} />
-            Logs
+            Log
           </button>
         </div>
 

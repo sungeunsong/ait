@@ -47,6 +47,7 @@ pub fn run() {
             profile_get_password,
             profile_set_password,
             test_keyring,
+            debug_list_credentials,
             history_save,
             history_search,
             history_suggestions,
@@ -105,6 +106,49 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     profile::delete_profile(conn, &id).map_err(|e| e.to_string())
+}
+
+/// Debug: Try to list or inspect credentials
+#[tauri::command]
+fn debug_list_credentials() -> Result<String, String> {
+    use keyring::Entry;
+
+    let test_id = "debug-test-123";
+    let test_password = "test-password";
+
+    crate::log!("[Debug] Testing credential storage with id: {}", test_id);
+
+    // Try to store
+    let entry = Entry::new("ait", test_id)
+        .map_err(|e| format!("Failed to create entry: {}", e))?;
+
+    crate::log!("[Debug] Entry created for service='ait', account='{}'", test_id);
+
+    entry.set_password(test_password)
+        .map_err(|e| format!("Failed to set password: {}", e))?;
+
+    crate::log!("[Debug] Password set successfully");
+
+    // Try to retrieve using the SAME entry object
+    match entry.get_password() {
+        Ok(pwd) => crate::log!("[Debug] ✓ Retrieved using SAME entry object: '{}'", pwd),
+        Err(e) => crate::log!("[Debug] ✗ Failed using SAME entry object: {}", e),
+    }
+
+    // Try to retrieve using a NEW entry object
+    let entry2 = Entry::new("ait", test_id)
+        .map_err(|e| format!("Failed to create second entry: {}", e))?;
+
+    match entry2.get_password() {
+        Ok(pwd) => {
+            crate::log!("[Debug] ✓ Retrieved using NEW entry object: '{}'", pwd);
+            Ok(format!("Success! Password retrieved: {}", pwd))
+        }
+        Err(e) => {
+            crate::log!("[Debug] ✗ Failed using NEW entry object: {:?}", e);
+            Err(format!("Failed to retrieve with new entry: {:?}", e))
+        }
+    }
 }
 
 /// Test keyring functionality (for debugging)
