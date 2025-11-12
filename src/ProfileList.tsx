@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Server, Plus, FolderOpen, ChevronRight, Trash2, FileText } from "lucide-react";
+import { Server, Plus, FolderOpen, ChevronRight, Trash2 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ProfileModal } from "./ProfileModal";
 
@@ -108,45 +108,6 @@ export const ProfileList: React.FC<ProfileListProps> = ({
     }
   };
 
-  // Test keyring functionality
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const testKeyring = async () => {
-    setTestResult(null);
-    try {
-      const result = await invoke<string>("test_keyring");
-      setTestResult({ success: true, message: result });
-      console.log("[Keyring Test]", result);
-    } catch (error) {
-      setTestResult({ success: false, message: String(error) });
-      console.error("[Keyring Test] Failed:", error);
-    }
-  };
-
-  const debugCredentials = async () => {
-    setTestResult(null);
-    try {
-      const result = await invoke<string>("debug_list_credentials");
-      setTestResult({ success: true, message: result });
-      console.log("[Debug]", result);
-    } catch (error) {
-      setTestResult({ success: false, message: String(error) });
-      console.error("[Debug] Failed:", error);
-    }
-  };
-
-  // Open log file
-  const openLogFile = async () => {
-    try {
-      const logPath = await invoke<string>("get_log_path");
-      // Copy path to clipboard and show in alert
-      navigator.clipboard.writeText(logPath);
-      alert("📋 Log file path copied to clipboard:\n\n" + logPath + "\n\nOpen it with Notepad or your favorite text editor.");
-    } catch (error) {
-      console.error("[Log] Failed to get log path:", error);
-      alert("Failed to get log path: " + String(error));
-    }
-  };
 
   return (
     <div className="flex h-full w-72 flex-col border-r border-gray-800/50 bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950">
@@ -165,49 +126,6 @@ export const ProfileList: React.FC<ProfileListProps> = ({
         >
           <Plus size={16} />
         </button>
-      </div>
-
-      {/* Debug Tools */}
-      <div className="border-b border-gray-800/50 px-4 py-2 space-y-2">
-        <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={testKeyring}
-            className="rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
-            title="Test Windows Credential Manager"
-          >
-            🔐 Test
-          </button>
-          <button
-            onClick={debugCredentials}
-            className="rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
-            title="Debug credential storage"
-          >
-            🔍 Debug
-          </button>
-          <button
-            onClick={openLogFile}
-            className="flex items-center justify-center gap-1 rounded-lg bg-gray-800/50 px-2 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
-            title="Open log file"
-          >
-            <FileText size={12} />
-            Log
-          </button>
-        </div>
-
-        {testResult && (
-          <div className={`rounded-lg px-3 py-2 text-xs ${
-            testResult.success
-              ? "bg-green-900/30 text-green-300 border border-green-700/50"
-              : "bg-red-900/30 text-red-300 border border-red-700/50"
-          }`}>
-            <div className="font-semibold mb-1">
-              {testResult.success ? "✅ Success" : "❌ Failed"}
-            </div>
-            <div className="whitespace-pre-wrap break-words">
-              {testResult.message}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Profile List */}

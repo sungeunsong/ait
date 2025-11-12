@@ -46,8 +46,6 @@ pub fn run() {
             profile_delete,
             profile_get_password,
             profile_set_password,
-            test_keyring,
-            debug_list_credentials,
             history_save,
             history_search,
             history_suggestions,
@@ -61,7 +59,6 @@ pub fn run() {
             macros_get,
             macros_set,
             macros_delete,
-            get_log_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -106,121 +103,6 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     profile::delete_profile(conn, &id).map_err(|e| e.to_string())
-}
-
-/// Debug: Try to list or inspect credentials
-#[tauri::command]
-fn debug_list_credentials() -> Result<String, String> {
-    use keyring::Entry;
-
-    let test_id = "debug-test-123";
-    let test_password = "test-password";
-
-    crate::log!("[Debug] Testing credential storage with id: {}", test_id);
-
-    // Try to store
-    let entry = Entry::new("ait", test_id)
-        .map_err(|e| format!("Failed to create entry: {}", e))?;
-
-    crate::log!("[Debug] Entry created for service='ait', account='{}'", test_id);
-
-    entry.set_password(test_password)
-        .map_err(|e| format!("Failed to set password: {}", e))?;
-
-    crate::log!("[Debug] Password set successfully");
-
-    // Try to retrieve using the SAME entry object
-    match entry.get_password() {
-        Ok(pwd) => crate::log!("[Debug] ✓ Retrieved using SAME entry object: '{}'", pwd),
-        Err(e) => crate::log!("[Debug] ✗ Failed using SAME entry object: {}", e),
-    }
-
-    // Try to retrieve using a NEW entry object
-    let entry2 = Entry::new("ait", test_id)
-        .map_err(|e| format!("Failed to create second entry: {}", e))?;
-
-    match entry2.get_password() {
-        Ok(pwd) => {
-            crate::log!("[Debug] ✓ Retrieved using NEW entry object: '{}'", pwd);
-            Ok(format!("Success! Password retrieved: {}", pwd))
-        }
-        Err(e) => {
-            crate::log!("[Debug] ✗ Failed using NEW entry object: {:?}", e);
-            Err(format!("Failed to retrieve with new entry: {:?}", e))
-        }
-    }
-}
-
-/// Test keyring functionality (for debugging)
-#[tauri::command]
-fn test_keyring() -> Result<String, String> {
-    use keyring::Entry;
-
-    let test_service = "ait-test";
-    let test_user = "test-user";
-    let test_password = "test-password-123";
-
-    println!("[Keyring Test] Starting keyring test...");
-
-    // Step 1: Create entry
-    let entry = match Entry::new(test_service, test_user) {
-        Ok(e) => {
-            println!("[Keyring Test] ✓ Entry created successfully");
-            e
-        }
-        Err(e) => {
-            return Err(format!("Failed to create entry: {}", e));
-        }
-    };
-
-    // Step 2: Set password
-    match entry.set_password(test_password) {
-        Ok(_) => println!("[Keyring Test] ✓ Password set successfully"),
-        Err(e) => {
-            return Err(format!("Failed to set password: {}", e));
-        }
-    }
-
-    // Step 3: Get password
-    let retrieved = match entry.get_password() {
-        Ok(pwd) => {
-            println!("[Keyring Test] ✓ Password retrieved successfully");
-            pwd
-        }
-        Err(e) => {
-            return Err(format!("Failed to get password: {}", e));
-        }
-    };
-
-    // Step 4: Verify password
-    if retrieved == test_password {
-        println!("[Keyring Test] ✓ Password matches!");
-    } else {
-        return Err(format!("Password mismatch! Expected: {}, Got: {}", test_password, retrieved));
-    }
-
-    // Step 5: Delete password
-    match entry.delete_credential() {
-        Ok(_) => println!("[Keyring Test] ✓ Password deleted successfully"),
-        Err(e) => {
-            return Err(format!("Failed to delete password: {}", e));
-        }
-    }
-
-    // Step 6: Verify deletion
-    match entry.get_password() {
-        Ok(_) => {
-            return Err("Password still exists after deletion!".to_string());
-        }
-        Err(keyring::Error::NoEntry) => {
-            println!("[Keyring Test] ✓ Password deletion verified");
-        }
-        Err(e) => {
-            return Err(format!("Unexpected error after deletion: {}", e));
-        }
-    }
-
-    Ok("Keyring test passed successfully! ✓".to_string())
 }
 
 #[tauri::command]
@@ -421,12 +303,4 @@ fn macros_delete(state: State<AppState>, profile_id: Option<String>) -> Result<(
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     macros::delete_macros(conn, profile_id).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_log_path(app: tauri::AppHandle) -> Result<String, String> {
-    app.path()
-        .app_data_dir()
-        .map(|p| p.join("ait.log").display().to_string())
-        .map_err(|e| e.to_string())
 }
