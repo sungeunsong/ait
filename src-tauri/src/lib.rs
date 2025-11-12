@@ -99,13 +99,69 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn profile_get_password(profile_id: String) -> Result<Option<String>, String> {
-    profile::get_password(&profile_id)
+fn profile_get_password(state: State<AppState>, profile_id: String) -> Result<Option<String>, String> {
+    // First, try to get password from keyring
+    match profile::get_password(&profile_id) {
+        Ok(Some(password)) => {
+            // Found in keyring
+            Ok(Some(password))
+        }
+        Ok(None) | Err(_) => {
+            // Not found in keyring or keyring unavailable, try database fallback
+            let db_guard = state.db.lock().unwrap();
+            let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+
+            match profile::get_profile(conn, &profile_id) {
+                Ok(Some(profile)) if profile.password.is_some() => {
+                    println!("[Profile] Using database fallback for password (profile: {})", profile_id);
+                    Ok(profile.password)
+                }
+                Ok(Some(_)) => {
+                    println!("[Profile] No password found in keyring or database for profile: {}", profile_id);
+                    Ok(None)
+                }
+                Ok(None) => {
+                    Err(format!("Profile not found: {}", profile_id))
+                }
+                Err(e) => {
+                    Err(format!("Database error: {}", e))
+                }
+            }
+        }
+    }
 }
 
 #[tauri::command]
-fn profile_set_password(profile_id: String, password: String) -> Result<(), String> {
-    profile::store_password(&profile_id, &password)
+fn profile_set_password(state: State<AppState>, profile_id: String, password: String) -> Result<(), String> {
+    // Try to store in keyring first
+    match profile::store_password(&profile_id, &password) {
+        Ok(()) => {
+            // Successfully stored in keyring, clear from database
+            let db_guard = state.db.lock().unwrap();
+            let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+
+            conn.execute(
+                "UPDATE profiles SET password = NULL WHERE id = ?1",
+                [&profile_id]
+            ).map_err(|e| format!("Failed to clear password from database: {}", e))?;
+
+            Ok(())
+        }
+        Err(_) => {
+            // Keyring unavailable, store in database as fallback
+            println!("[Profile] Keyring unavailable, storing password in database for profile: {}", profile_id);
+
+            let db_guard = state.db.lock().unwrap();
+            let conn = db_guard.as_ref().ok_or("Database not initialized")?;
+
+            conn.execute(
+                "UPDATE profiles SET password = ?1 WHERE id = ?2",
+                rusqlite::params![&password, &profile_id]
+            ).map_err(|e| format!("Failed to store password in database: {}", e))?;
+
+            Ok(())
+        }
+    }
 }
 
 #[tauri::command]

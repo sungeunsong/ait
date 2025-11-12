@@ -74,8 +74,6 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [tabs, activeTabId]);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId);
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-950">
       {/* Left Panel - Profile List */}
