@@ -89,11 +89,26 @@ lazy_static::lazy_static! {
 
 /// Get keyring entry for a profile
 fn get_keyring_entry(profile_id: &str) -> Result<Entry, String> {
-    crate::log!("[Keyring] Creating entry with service='ait', account='{}'", profile_id);
-    Entry::new("ait", profile_id).map_err(|e| {
-        crate::log!("[Keyring] Failed to create entry: {}", e);
-        format!("Failed to access keyring: {}", e)
-    })
+    // Use a simpler target name format for Windows
+    // Windows Credential Manager uses "target_name" which is typically "service.account"
+    let target_name = format!("ait:{}", profile_id);
+    crate::log!("[Keyring] Creating entry with target_name='{}'", target_name);
+
+    // Try using Entry::new_with_target for more control
+    match Entry::new_with_target(&target_name, "ait", profile_id) {
+        Ok(entry) => {
+            crate::log!("[Keyring] ✓ Entry created with new_with_target");
+            Ok(entry)
+        }
+        Err(e) => {
+            crate::log!("[Keyring] Failed with new_with_target: {}, falling back to Entry::new", e);
+            // Fallback to regular Entry::new
+            Entry::new("ait", profile_id).map_err(|e| {
+                crate::log!("[Keyring] Failed to create entry with Entry::new: {}", e);
+                format!("Failed to access keyring: {}", e)
+            })
+        }
+    }
 }
 
 /// Store password (keyring or database fallback)
