@@ -2,6 +2,7 @@ mod ai;
 mod commands_dict;
 mod db;
 mod history;
+mod logger;
 mod macros;
 mod profile;
 mod settings;
@@ -19,26 +20,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // Setup logging to file in production
-            #[cfg(not(debug_assertions))]
-            {
-                use std::fs::OpenOptions;
-                use std::io::Write;
-
-                if let Some(app_data) = app.path().app_data_dir().ok() {
-                    let log_path = app_data.join("ait.log");
-
-                    // Create a simple logger that writes to file
-                    if let Ok(mut file) = OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&log_path)
-                    {
-                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-                        let _ = writeln!(file, "\n========== AIT Started at {} ==========", timestamp);
-                        println!("[Setup] Logging to: {:?}", log_path);
-                    }
-                }
+            // Setup logging to file
+            if let Some(app_data) = app.path().app_data_dir().ok() {
+                let log_path = app_data.join("ait.log");
+                logger::init_logger(log_path.clone());
+                println!("[Setup] Logging to: {:?}", log_path);
             }
 
             // Initialize database
@@ -75,6 +61,7 @@ pub fn run() {
             macros_get,
             macros_set,
             macros_delete,
+            get_log_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -391,4 +378,12 @@ fn macros_delete(state: State<AppState>, profile_id: Option<String>) -> Result<(
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     macros::delete_macros(conn, profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_log_path(app: tauri::AppHandle) -> Result<String, String> {
+    app.path()
+        .app_data_dir()
+        .map(|p| p.join("ait.log").display().to_string())
+        .map_err(|e| e.to_string())
 }

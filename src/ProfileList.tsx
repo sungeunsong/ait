@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Server, Plus, FolderOpen, ChevronRight, Trash2 } from "lucide-react";
+import { Server, Plus, FolderOpen, ChevronRight, Trash2, FileText } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ProfileModal } from "./ProfileModal";
 
@@ -123,6 +123,19 @@ export const ProfileList: React.FC<ProfileListProps> = ({
     }
   };
 
+  // Open log file
+  const openLogFile = async () => {
+    try {
+      const logPath = await invoke<string>("get_log_path");
+      // Copy path to clipboard and show in alert
+      navigator.clipboard.writeText(logPath);
+      alert("📋 Log file path copied to clipboard:\n\n" + logPath + "\n\nOpen it with Notepad or your favorite text editor.");
+    } catch (error) {
+      console.error("[Log] Failed to get log path:", error);
+      alert("Failed to get log path: " + String(error));
+    }
+  };
+
   return (
     <div className="flex h-full w-72 flex-col border-r border-gray-800/50 bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950">
       {/* Header */}
@@ -144,13 +157,23 @@ export const ProfileList: React.FC<ProfileListProps> = ({
 
       {/* Debug Tools */}
       <div className="border-b border-gray-800/50 px-4 py-2 space-y-2">
-        <button
-          onClick={testKeyring}
-          className="w-full rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
-          title="Test Windows Credential Manager"
-        >
-          🔐 Test Keyring
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={testKeyring}
+            className="rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+            title="Test Windows Credential Manager"
+          >
+            🔐 Test
+          </button>
+          <button
+            onClick={openLogFile}
+            className="flex items-center justify-center gap-1 rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+            title="Open log file"
+          >
+            <FileText size={12} />
+            Logs
+          </button>
+        </div>
 
         {testResult && (
           <div className={`rounded-lg px-3 py-2 text-xs ${

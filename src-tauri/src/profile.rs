@@ -158,17 +158,48 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
     let now = chrono::Utc::now().timestamp();
     let id = Uuid::new_v4().to_string();
 
+    println!("[Profile] Creating new profile: {} (id: {})", input.name, id);
+
     let db_password = if let Some(ref password) = input.password {
+        println!("[Profile] Password provided (length: {} chars)", password.len());
         if *KEYRING_AVAILABLE {
             // Store in keychain, don't store in DB
-            store_password(&id, password)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))))?;
+            println!("[Profile] Attempting to store password in keychain for: {}", id);
+            match store_password(&id, password) {
+                Ok(_) => {
+                    println!("[Profile] ✓ Password stored in keychain");
+
+                    // Immediately verify it was stored
+                    match get_password(&id) {
+                        Ok(Some(retrieved)) => {
+                            println!("[Profile] ✓ Verified: Password retrieval successful (length: {})", retrieved.len());
+                            if retrieved == *password {
+                                println!("[Profile] ✓ Verified: Password matches!");
+                            } else {
+                                eprintln!("[Profile] ✗ WARNING: Retrieved password doesn't match!");
+                            }
+                        }
+                        Ok(None) => {
+                            eprintln!("[Profile] ✗ WARNING: Password not found after storing!");
+                        }
+                        Err(e) => {
+                            eprintln!("[Profile] ✗ WARNING: Failed to retrieve password: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[Profile] ✗ Failed to store in keychain: {}", e);
+                    return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))));
+                }
+            }
             None
         } else {
             // Store in database (fallback)
+            println!("[Profile] Storing password in database (keyring unavailable)");
             Some(password.clone())
         }
     } else {
+        println!("[Profile] No password provided");
         None
     };
 
