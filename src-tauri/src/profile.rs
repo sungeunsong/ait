@@ -89,7 +89,11 @@ lazy_static::lazy_static! {
 
 /// Get keyring entry for a profile
 fn get_keyring_entry(profile_id: &str) -> Result<Entry, String> {
-    Entry::new("ait", profile_id).map_err(|e| format!("Failed to access keyring: {}", e))
+    crate::log!("[Keyring] Creating entry with service='ait', account='{}'", profile_id);
+    Entry::new("ait", profile_id).map_err(|e| {
+        crate::log!("[Keyring] Failed to create entry: {}", e);
+        format!("Failed to access keyring: {}", e)
+    })
 }
 
 /// Store password (keyring or database fallback)
@@ -128,11 +132,19 @@ pub fn get_password(profile_id: &str) -> Result<Option<String>, String> {
             }
             Err(keyring::Error::NoEntry) => {
                 crate::log!("[Keyring] ⚠ No password in keychain for profile: {}", profile_id);
+                crate::log!("[Keyring] NoEntry error - credential not found in Windows Credential Manager");
                 Ok(None)
             }
+            Err(keyring::Error::Invalid(msg, source)) => {
+                crate::log!("[Keyring] ✗ Invalid error: {}, source: {}", msg, source);
+                Err(format!("Invalid keyring operation: {}", msg))
+            }
+            Err(keyring::Error::PlatformFailure(e)) => {
+                crate::log!("[Keyring] ✗ Platform failure: {:#?}", e);
+                Err(format!("Windows Credential Manager error: {:#?}", e))
+            }
             Err(e) => {
-                crate::log!("[Keyring] ✗ Failed to retrieve from keychain: {:?}", e);
-                crate::log!("[Keyring] Error details: {}", e);
+                crate::log!("[Keyring] ✗ Unknown keyring error: {:?}", e);
                 Err(format!("Failed to retrieve password: {}", e))
             }
         }
@@ -169,6 +181,10 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
                 Ok(_) => {
                     crate::log!("[Profile] ✓ Password stored in keychain");
 
+                    // Small delay to let Windows Credential Manager sync
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    crate::log!("[Profile] Waiting 100ms for keychain sync...");
+
                     // Immediately verify it was stored
                     match get_password(&id) {
                         Ok(Some(retrieved)) => {
@@ -177,10 +193,21 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
                                 crate::log!("[Profile] ✓ Verified: Password matches!");
                             } else {
                                 crate::log!("[Profile] ✗ WARNING: Retrieved password doesn't match!");
+                                crate::log!("[Profile] Expected: {}, Got: {}", password, retrieved);
                             }
                         }
                         Ok(None) => {
                             crate::log!("[Profile] ✗ WARNING: Password not found after storing!");
+                            crate::log!("[Profile] This might be a Windows Credential Manager sync issue");
+
+                            // Try one more time after another delay
+                            std::thread::sleep(std::time::Duration::from_millis(200));
+                            crate::log!("[Profile] Retrying after 200ms...");
+                            match get_password(&id) {
+                                Ok(Some(_)) => crate::log!("[Profile] ✓ Retry successful!"),
+                                Ok(None) => crate::log!("[Profile] ✗ Retry failed - still no password"),
+                                Err(e) => crate::log!("[Profile] ✗ Retry error: {}", e),
+                            }
                         }
                         Err(e) => {
                             crate::log!("[Profile] ✗ WARNING: Failed to retrieve password: {}", e);
