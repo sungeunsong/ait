@@ -19,6 +19,28 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // Setup logging to file in production
+            #[cfg(not(debug_assertions))]
+            {
+                use std::fs::OpenOptions;
+                use std::io::Write;
+
+                if let Some(app_data) = app.path().app_data_dir().ok() {
+                    let log_path = app_data.join("ait.log");
+
+                    // Create a simple logger that writes to file
+                    if let Ok(mut file) = OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&log_path)
+                    {
+                        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+                        let _ = writeln!(file, "\n========== AIT Started at {} ==========", timestamp);
+                        println!("[Setup] Logging to: {:?}", log_path);
+                    }
+                }
+            }
+
             // Initialize database
             let conn = db::open_connection(app.handle())?;
             app.manage(AppState {

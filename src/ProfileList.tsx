@@ -109,13 +109,16 @@ export const ProfileList: React.FC<ProfileListProps> = ({
   };
 
   // Test keyring functionality
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   const testKeyring = async () => {
+    setTestResult(null);
     try {
       const result = await invoke<string>("test_keyring");
-      alert("✅ " + result);
+      setTestResult({ success: true, message: result });
       console.log("[Keyring Test]", result);
     } catch (error) {
-      alert("❌ Keyring test failed: " + String(error));
+      setTestResult({ success: false, message: String(error) });
       console.error("[Keyring Test] Failed:", error);
     }
   };
@@ -140,7 +143,7 @@ export const ProfileList: React.FC<ProfileListProps> = ({
       </div>
 
       {/* Debug Tools */}
-      <div className="border-b border-gray-800/50 px-4 py-2">
+      <div className="border-b border-gray-800/50 px-4 py-2 space-y-2">
         <button
           onClick={testKeyring}
           className="w-full rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
@@ -148,6 +151,21 @@ export const ProfileList: React.FC<ProfileListProps> = ({
         >
           🔐 Test Keyring
         </button>
+
+        {testResult && (
+          <div className={`rounded-lg px-3 py-2 text-xs ${
+            testResult.success
+              ? "bg-green-900/30 text-green-300 border border-green-700/50"
+              : "bg-red-900/30 text-red-300 border border-red-700/50"
+          }`}>
+            <div className="font-semibold mb-1">
+              {testResult.success ? "✅ Success" : "❌ Failed"}
+            </div>
+            <div className="whitespace-pre-wrap break-words">
+              {testResult.message}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Profile List */}
