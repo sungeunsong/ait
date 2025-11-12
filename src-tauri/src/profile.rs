@@ -96,21 +96,21 @@ fn get_keyring_entry(profile_id: &str) -> Result<Entry, String> {
 pub fn store_password(profile_id: &str, password: &str) -> Result<(), String> {
     if *KEYRING_AVAILABLE {
         // Use OS keychain
-        println!("[Keyring] Storing password in OS keychain for profile: {}", profile_id);
+        crate::log!("[Keyring] Storing password in OS keychain for profile: {}", profile_id);
         let entry = get_keyring_entry(profile_id)?;
         match entry.set_password(password) {
             Ok(_) => {
-                println!("[Keyring] ✓ Password stored in keychain");
+                crate::log!("[Keyring] ✓ Password stored in keychain");
                 Ok(())
             }
             Err(e) => {
-                eprintln!("[Keyring] ✗ Failed to store in keychain: {}", e);
+                crate::log!("[Keyring] ✗ Failed to store in keychain: {}", e);
                 Err(format!("Failed to store password: {}", e))
             }
         }
     } else {
         // Fallback: Return Ok (password will be stored in database by caller)
-        println!("[Keyring] Using database fallback for profile: {}", profile_id);
+        crate::log!("[Keyring] Using database fallback for profile: {}", profile_id);
         Ok(())
     }
 }
@@ -119,26 +119,26 @@ pub fn store_password(profile_id: &str, password: &str) -> Result<(), String> {
 pub fn get_password(profile_id: &str) -> Result<Option<String>, String> {
     if *KEYRING_AVAILABLE {
         // Use OS keychain
-        println!("[Keyring] Retrieving password from OS keychain for profile: {}", profile_id);
+        crate::log!("[Keyring] Retrieving password from OS keychain for profile: {}", profile_id);
         let entry = get_keyring_entry(profile_id)?;
         match entry.get_password() {
             Ok(password) => {
-                println!("[Keyring] ✓ Password retrieved from keychain (length: {} chars)", password.len());
+                crate::log!("[Keyring] ✓ Password retrieved from keychain (length: {} chars)", password.len());
                 Ok(Some(password))
             }
             Err(keyring::Error::NoEntry) => {
-                println!("[Keyring] ⚠ No password in keychain for profile: {}", profile_id);
+                crate::log!("[Keyring] ⚠ No password in keychain for profile: {}", profile_id);
                 Ok(None)
             }
             Err(e) => {
-                eprintln!("[Keyring] ✗ Failed to retrieve from keychain: {:?}", e);
-                eprintln!("[Keyring] Error details: {}", e);
+                crate::log!("[Keyring] ✗ Failed to retrieve from keychain: {:?}", e);
+                crate::log!("[Keyring] Error details: {}", e);
                 Err(format!("Failed to retrieve password: {}", e))
             }
         }
     } else {
         // Fallback: Return None (password should be in database)
-        println!("[Keyring] Using database fallback for profile: {}", profile_id);
+        crate::log!("[Keyring] Using database fallback for profile: {}", profile_id);
         Ok(None)
     }
 }
@@ -158,48 +158,48 @@ pub fn create_profile(conn: &Connection, input: CreateProfileInput) -> Result<Pr
     let now = chrono::Utc::now().timestamp();
     let id = Uuid::new_v4().to_string();
 
-    println!("[Profile] Creating new profile: {} (id: {})", input.name, id);
+    crate::log!("[Profile] Creating new profile: {} (id: {})", input.name, id);
 
     let db_password = if let Some(ref password) = input.password {
-        println!("[Profile] Password provided (length: {} chars)", password.len());
+        crate::log!("[Profile] Password provided (length: {} chars)", password.len());
         if *KEYRING_AVAILABLE {
             // Store in keychain, don't store in DB
-            println!("[Profile] Attempting to store password in keychain for: {}", id);
+            crate::log!("[Profile] Attempting to store password in keychain for: {}", id);
             match store_password(&id, password) {
                 Ok(_) => {
-                    println!("[Profile] ✓ Password stored in keychain");
+                    crate::log!("[Profile] ✓ Password stored in keychain");
 
                     // Immediately verify it was stored
                     match get_password(&id) {
                         Ok(Some(retrieved)) => {
-                            println!("[Profile] ✓ Verified: Password retrieval successful (length: {})", retrieved.len());
+                            crate::log!("[Profile] ✓ Verified: Password retrieval successful (length: {})", retrieved.len());
                             if retrieved == *password {
-                                println!("[Profile] ✓ Verified: Password matches!");
+                                crate::log!("[Profile] ✓ Verified: Password matches!");
                             } else {
-                                eprintln!("[Profile] ✗ WARNING: Retrieved password doesn't match!");
+                                crate::log!("[Profile] ✗ WARNING: Retrieved password doesn't match!");
                             }
                         }
                         Ok(None) => {
-                            eprintln!("[Profile] ✗ WARNING: Password not found after storing!");
+                            crate::log!("[Profile] ✗ WARNING: Password not found after storing!");
                         }
                         Err(e) => {
-                            eprintln!("[Profile] ✗ WARNING: Failed to retrieve password: {}", e);
+                            crate::log!("[Profile] ✗ WARNING: Failed to retrieve password: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("[Profile] ✗ Failed to store in keychain: {}", e);
+                    crate::log!("[Profile] ✗ Failed to store in keychain: {}", e);
                     return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e))));
                 }
             }
             None
         } else {
             // Store in database (fallback)
-            println!("[Profile] Storing password in database (keyring unavailable)");
+            crate::log!("[Profile] Storing password in database (keyring unavailable)");
             Some(password.clone())
         }
     } else {
-        println!("[Profile] No password provided");
+        crate::log!("[Profile] No password provided");
         None
     };
 

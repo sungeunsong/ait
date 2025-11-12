@@ -22,9 +22,8 @@ pub fn run() {
         .setup(|app| {
             // Setup logging to file
             if let Some(app_data) = app.path().app_data_dir().ok() {
-                let log_path = app_data.join("ait.log");
-                logger::init_logger(log_path.clone());
-                println!("[Setup] Logging to: {:?}", log_path);
+                logger::init_logger(app_data.clone());
+                crate::log!("[Setup] AIT application starting...");
             }
 
             // Initialize database

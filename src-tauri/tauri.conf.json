@@ -39,6 +39,17 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      }
+    }
+  },
+  "productName": "AIT Terminal",
+  "plugins": {
+    "log": {
+      "targets": ["stdout", "webview"]
+    }
   }
 }
