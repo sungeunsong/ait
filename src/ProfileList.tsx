@@ -17,11 +17,13 @@ export interface ServerProfile {
 }
 
 interface ProfileListProps {
-  onSelectProfile: (profile: ServerProfile) => void;
+  onConnectProfile: (profile: ServerProfile) => void;
   selectedProfileId: string | null;
+  onSelectProfile: (profileId: string) => void;
 }
 
 export const ProfileList: React.FC<ProfileListProps> = ({
+  onConnectProfile,
   onSelectProfile,
   selectedProfileId,
 }) => {
@@ -176,7 +178,8 @@ export const ProfileList: React.FC<ProfileListProps> = ({
                     }`}
                   >
                     <button
-                      onClick={() => onSelectProfile(profile)}
+                      onClick={() => onSelectProfile(profile.id)}
+                      onDoubleClick={() => onConnectProfile(profile)}
                       className="flex flex-1 items-center gap-3 px-3 py-2.5 text-left"
                     >
                       <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${

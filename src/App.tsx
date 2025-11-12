@@ -12,9 +12,15 @@ interface Tab {
 function App() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
-  // 프로필 선택 시 새 탭 추가
-  const handleSelectProfile = (profile: ServerProfile) => {
+  // 프로필 선택 (단일 클릭)
+  const handleSelectProfile = (profileId: string) => {
+    setSelectedProfileId(profileId);
+  };
+
+  // 프로필 연결 (더블 클릭 시 새 탭 추가)
+  const handleConnectProfile = (profile: ServerProfile) => {
     const newTab: Tab = {
       id: `tab-${Date.now()}-${Math.random()}`,
       profile,
@@ -22,6 +28,7 @@ function App() {
     };
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newTab.id);
+    setSelectedProfileId(profile.id);
   };
 
   // 탭 닫기
@@ -74,7 +81,8 @@ function App() {
       {/* Left Panel - Profile List */}
       <ProfileList
         onSelectProfile={handleSelectProfile}
-        selectedProfileId={activeTab?.profile.id || null}
+        onConnectProfile={handleConnectProfile}
+        selectedProfileId={selectedProfileId}
       />
 
       {/* Right Panel - Tabs + Terminal */}
