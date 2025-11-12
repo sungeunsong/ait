@@ -123,15 +123,16 @@ pub fn get_password(profile_id: &str) -> Result<Option<String>, String> {
         let entry = get_keyring_entry(profile_id)?;
         match entry.get_password() {
             Ok(password) => {
-                println!("[Keyring] ✓ Password retrieved from keychain");
+                println!("[Keyring] ✓ Password retrieved from keychain (length: {} chars)", password.len());
                 Ok(Some(password))
             }
             Err(keyring::Error::NoEntry) => {
-                println!("[Keyring] ⚠ No password in keychain");
+                println!("[Keyring] ⚠ No password in keychain for profile: {}", profile_id);
                 Ok(None)
             }
             Err(e) => {
-                eprintln!("[Keyring] ✗ Failed to retrieve from keychain: {}", e);
+                eprintln!("[Keyring] ✗ Failed to retrieve from keychain: {:?}", e);
+                eprintln!("[Keyring] Error details: {}", e);
                 Err(format!("Failed to retrieve password: {}", e))
             }
         }

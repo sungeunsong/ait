@@ -39,6 +39,7 @@ pub fn run() {
             profile_delete,
             profile_get_password,
             profile_set_password,
+            test_keyring,
             history_save,
             history_search,
             history_suggestions,
@@ -96,6 +97,78 @@ fn profile_delete(state: State<AppState>, id: String) -> Result<(), String> {
     let db_guard = state.db.lock().unwrap();
     let conn = db_guard.as_ref().ok_or("Database not initialized")?;
     profile::delete_profile(conn, &id).map_err(|e| e.to_string())
+}
+
+/// Test keyring functionality (for debugging)
+#[tauri::command]
+fn test_keyring() -> Result<String, String> {
+    use keyring::Entry;
+
+    let test_service = "ait-test";
+    let test_user = "test-user";
+    let test_password = "test-password-123";
+
+    println!("[Keyring Test] Starting keyring test...");
+
+    // Step 1: Create entry
+    let entry = match Entry::new(test_service, test_user) {
+        Ok(e) => {
+            println!("[Keyring Test] ✓ Entry created successfully");
+            e
+        }
+        Err(e) => {
+            return Err(format!("Failed to create entry: {}", e));
+        }
+    };
+
+    // Step 2: Set password
+    match entry.set_password(test_password) {
+        Ok(_) => println!("[Keyring Test] ✓ Password set successfully"),
+        Err(e) => {
+            return Err(format!("Failed to set password: {}", e));
+        }
+    }
+
+    // Step 3: Get password
+    let retrieved = match entry.get_password() {
+        Ok(pwd) => {
+            println!("[Keyring Test] ✓ Password retrieved successfully");
+            pwd
+        }
+        Err(e) => {
+            return Err(format!("Failed to get password: {}", e));
+        }
+    };
+
+    // Step 4: Verify password
+    if retrieved == test_password {
+        println!("[Keyring Test] ✓ Password matches!");
+    } else {
+        return Err(format!("Password mismatch! Expected: {}, Got: {}", test_password, retrieved));
+    }
+
+    // Step 5: Delete password
+    match entry.delete_credential() {
+        Ok(_) => println!("[Keyring Test] ✓ Password deleted successfully"),
+        Err(e) => {
+            return Err(format!("Failed to delete password: {}", e));
+        }
+    }
+
+    // Step 6: Verify deletion
+    match entry.get_password() {
+        Ok(_) => {
+            return Err("Password still exists after deletion!".to_string());
+        }
+        Err(keyring::Error::NoEntry) => {
+            println!("[Keyring Test] ✓ Password deletion verified");
+        }
+        Err(e) => {
+            return Err(format!("Unexpected error after deletion: {}", e));
+        }
+    }
+
+    Ok("Keyring test passed successfully! ✓".to_string())
 }
 
 #[tauri::command]

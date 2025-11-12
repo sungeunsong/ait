@@ -108,6 +108,18 @@ export const ProfileList: React.FC<ProfileListProps> = ({
     }
   };
 
+  // Test keyring functionality
+  const testKeyring = async () => {
+    try {
+      const result = await invoke<string>("test_keyring");
+      alert("✅ " + result);
+      console.log("[Keyring Test]", result);
+    } catch (error) {
+      alert("❌ Keyring test failed: " + String(error));
+      console.error("[Keyring Test] Failed:", error);
+    }
+  };
+
   return (
     <div className="flex h-full w-72 flex-col border-r border-gray-800/50 bg-gradient-to-b from-gray-900 via-gray-900 to-gray-950">
       {/* Header */}
@@ -124,6 +136,17 @@ export const ProfileList: React.FC<ProfileListProps> = ({
           title="Add Server"
         >
           <Plus size={16} />
+        </button>
+      </div>
+
+      {/* Debug Tools */}
+      <div className="border-b border-gray-800/50 px-4 py-2">
+        <button
+          onClick={testKeyring}
+          className="w-full rounded-lg bg-gray-800/50 px-3 py-2 text-xs text-gray-300 transition-all hover:bg-gray-800 hover:text-white"
+          title="Test Windows Credential Manager"
+        >
+          🔐 Test Keyring
         </button>
       </div>
 
